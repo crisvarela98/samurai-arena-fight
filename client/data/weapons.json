@@ -1,0 +1,20 @@
+[
+  {
+    "id": "katana",
+    "name": "Katana",
+    "damage_light": 12,
+    "damage_heavy": 20,
+    "stamina_cost": 12,
+    "range": 72,
+    "cooldown": 0.3
+  },
+  {
+    "id": "axe",
+    "name": "Axe",
+    "damage_light": 14,
+    "damage_heavy": 24,
+    "stamina_cost": 14,
+    "range": 68,
+    "cooldown": 0.45
+  }
+]

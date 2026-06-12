@@ -1,0 +1,13 @@
+{
+  "screen_width": 1280,
+  "screen_height": 720,
+  "fps": 60,
+  "fullscreen": false,
+  "platform": "pc",
+  "master_volume": 1.0,
+  "music_volume": 0.7,
+  "music_enabled": true,
+  "sfx_volume": 0.8,
+  "server_url": "http://localhost:3000",
+  "username": "player"
+}

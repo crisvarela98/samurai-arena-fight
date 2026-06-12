@@ -1,0 +1,26 @@
+[
+  {
+    "id": "kenji",
+    "name": "Kenji",
+    "max_health": 120,
+    "max_stamina": 100,
+    "speed": 240,
+    "attack_power": 18,
+    "defense": 8,
+    "weapon_id": "katana",
+    "sprite_sheet": "assets/fighters/kenji_sheet_v2.png",
+    "portrait": "assets/fighters/portraits/kenji_portrait.png"
+  },
+  {
+    "id": "hayato",
+    "name": "Hayato",
+    "max_health": 135,
+    "max_stamina": 90,
+    "speed": 210,
+    "attack_power": 22,
+    "defense": 10,
+    "weapon_id": "axe",
+    "sprite_sheet": "assets/fighters/hayato_sheet_v2.png",
+    "portrait": "assets/fighters/portraits/hayato_portrait.png"
+  }
+]

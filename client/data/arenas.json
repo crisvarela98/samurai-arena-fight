@@ -1,0 +1,18 @@
+[
+  {
+    "id": "coliseo_de_acero",
+    "name": "Coliseo de Acero",
+    "background": "assets/arenas/coliseo_de_acero_bg.png",
+    "floor": "assets/arenas/coliseo_de_acero_floor.png",
+    "music": "coliseo.mp3",
+    "floor_y": 560
+  },
+  {
+    "id": "templo_en_llamas",
+    "name": "Templo en Llamas",
+    "background": "assets/arenas/templo_en_llamas_bg.png",
+    "floor": "assets/arenas/templo_en_llamas_floor.png",
+    "music": "templo.mp3",
+    "floor_y": 560
+  }
+]

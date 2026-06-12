@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+*.pyo
+*.log
+node_modules/
+.env
+client/.venv/
+client/.pytest_cache/
+server/node_modules/
+server/.env
+upstream/
+client/tmp/
