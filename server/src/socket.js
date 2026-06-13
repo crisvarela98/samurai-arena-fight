@@ -2,6 +2,7 @@ const { Server } = require("socket.io");
 const { createRoom, joinRoom, removePlayerFromRoom, markRoomFinished } = require("./services/room.service");
 const { saveMatchResult } = require("./services/match.service");
 const { upsertRanking } = require("./services/ranking.service");
+const { verifyToken } = require("./middleware/auth.middleware");
 
 const roomState = new Map();
 
@@ -9,15 +10,59 @@ function roomSnapshot(roomCode) {
   return roomState.get(roomCode);
 }
 
+function clampNumber(value, minimum, maximum, fallback) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? Math.max(minimum, Math.min(maximum, numeric)) : fallback;
+}
+
+function sanitizeOnlineFighter(payload = {}, accountUsername = "player") {
+  const fighter = payload.onlineFighter || {};
+  const color = Array.isArray(fighter.color) ? fighter.color.slice(0, 3).map((value) => clampNumber(value, 0, 255, 120)) : [170, 48, 52];
+  return {
+    username: String(fighter.username || accountUsername).trim().slice(0, 24) || accountUsername,
+    clanId: String(fighter.clan_id || fighter.clanId || "cuervo_negro").slice(0, 40),
+    clanName: String(fighter.clan_name || fighter.clanName || "Clan desconocido").slice(0, 80),
+    weaponId: String(fighter.weapon_id || fighter.weaponId || "katana").slice(0, 40),
+    weaponName: String(fighter.weapon_name || fighter.weaponName || "Katana").slice(0, 80),
+    color,
+    maxHealth: clampNumber(fighter.max_health || fighter.maxHealth, 70, 180, 115),
+    maxStamina: clampNumber(fighter.max_stamina || fighter.maxStamina, 60, 160, 100),
+    speed: clampNumber(fighter.speed, 150, 285, 220),
+    attackPower: clampNumber(fighter.attack_power || fighter.attackPower, 8, 32, 18),
+    defense: clampNumber(fighter.defense, 1, 18, 8),
+    range: clampNumber(fighter.range, 45, 110, 72),
+    spriteSheet: String(fighter.sprite_sheet || fighter.spriteSheet || "assets/fighters/hayato_sheet_v2.png"),
+    portrait: String(fighter.portrait || "assets/fighters/portraits/hayato_portrait.png"),
+    weapon: fighter.weapon || null,
+  };
+}
+
 function buildPlayer(socket, payload = {}) {
+  const profile = sanitizeOnlineFighter(payload, socket.user?.username || "player");
   return {
     socketId: socket.id,
-    username: payload.username || "player",
+    userId: socket.user?.sub || null,
+    username: profile.username,
     platform: payload.platform || "pc",
-    fighterId: payload.fighterId || "kenji",
+    fighterId: "online_custom",
     arenaId: payload.arenaId || "coliseo_de_acero",
-    health: 100,
-    stamina: 100,
+    clanId: profile.clanId,
+    clanName: profile.clanName,
+    weaponId: profile.weaponId,
+    weaponName: profile.weaponName,
+    color: profile.color,
+    maxHealth: profile.maxHealth,
+    maxStamina: profile.maxStamina,
+    speed: profile.speed,
+    attackPower: profile.attackPower,
+    defense: profile.defense,
+    range: profile.range,
+    spriteSheet: profile.spriteSheet,
+    portrait: profile.portrait,
+    weapon: profile.weapon,
+    health: profile.maxHealth,
+    stamina: profile.maxStamina,
+    roundWins: 0,
   };
 }
 
@@ -28,8 +73,23 @@ function playersPayload(room) {
     platform: player.platform,
     fighterId: player.fighterId,
     arenaId: player.arenaId,
+    clanId: player.clanId,
+    clanName: player.clanName,
+    weaponId: player.weaponId,
+    weaponName: player.weaponName,
+    color: player.color,
+    maxHealth: player.maxHealth,
+    maxStamina: player.maxStamina,
+    speed: player.speed,
+    attackPower: player.attackPower,
+    defense: player.defense,
+    range: player.range,
+    spriteSheet: player.spriteSheet,
+    portrait: player.portrait,
+    weapon: player.weapon,
     health: player.health,
     stamina: player.stamina,
+    roundWins: player.roundWins || 0,
   }));
 }
 
@@ -45,15 +105,31 @@ function initSocket(server) {
     },
   });
 
+  io.use((socket, next) => {
+    try {
+      socket.user = verifyToken(socket.handshake.auth?.token);
+      next();
+    } catch (_error) {
+      next(new Error("Sesion invalida. Inicia sesion para jugar online."));
+    }
+  });
+
   io.on("connection", (socket) => {
     socket.on("create_room", async (payload = {}) => {
-      const room = await createRoom({ username: payload.username || "player", socketId: socket.id });
       const host = buildPlayer(socket, payload);
+      const room = await createRoom({
+        username: host.username,
+        userId: host.userId,
+        clanId: host.clanId,
+        weaponId: host.weaponId,
+        color: host.color,
+      });
       roomState.set(room.roomCode, {
         roomCode: room.roomCode,
         players: [host],
         status: "waiting",
         arenaId: host.arenaId,
+        currentRound: 1,
       });
       const snapshot = roomSnapshot(room.roomCode);
       socket.join(room.roomCode);
@@ -81,8 +157,15 @@ function initSocket(server) {
         socket.emit("error_message", { message: "La sala ya esta completa" });
         return;
       }
-      await joinRoom({ roomCode, username: payload.username || "player", socketId: socket.id });
       const guest = buildPlayer(socket, payload);
+      await joinRoom({
+        roomCode,
+        username: guest.username,
+        userId: guest.userId,
+        clanId: guest.clanId,
+        weaponId: guest.weaponId,
+        color: guest.color,
+      });
       snapshot.players.push(guest);
       snapshot.status = "fighting";
       snapshot.arenaId = snapshot.players[0]?.arenaId || guest.arenaId;
@@ -96,6 +179,7 @@ function initSocket(server) {
       io.to(roomCode).emit("match_started", {
         roomCode,
         arenaId: snapshot.arenaId,
+        currentRound: snapshot.currentRound || 1,
         players: playersPayload(snapshot),
       });
     });
@@ -131,12 +215,13 @@ function initSocket(server) {
       const target = room.players.find((player) => player.socketId !== socket.id);
       if (!target) return;
 
-      target.health = Math.max(0, payload.health ?? target.health - (payload.damage || 0));
+      const damage = clampNumber(payload.damage, 1, 40, 1);
+      target.health = Math.max(0, target.health - damage);
       io.to(room.roomCode).emit("fighter_hit", {
         attackerSocketId: attacker?.socketId || socket.id,
         defenderSocketId: target.socketId,
         attackType: payload.attackType || "attack_light",
-        damage: payload.damage || 0,
+        damage,
         knockback: payload.knockback || 0,
         blocked: Boolean(payload.blocked),
         defenderHealth: target.health,
@@ -145,7 +230,7 @@ function initSocket(server) {
         players: playersPayload(room),
       });
       if (target.health === 0) {
-        await finishMatch(io, room, attacker, target);
+        await finishRound(io, room, attacker, target);
       }
     });
 
@@ -166,11 +251,15 @@ async function finishMatch(io, room, winner, loser) {
     roomCode: room.roomCode,
     player1: room.players[0]?.username || "player1",
     player2: room.players[1]?.username || "player2",
+    player1Clan: room.players[0]?.clanId || "unknown",
+    player2Clan: room.players[1]?.clanId || "unknown",
+    player1Weapon: room.players[0]?.weaponId || "unknown",
+    player2Weapon: room.players[1]?.weaponId || "unknown",
     winner: winner?.username || "winner",
     loser: loser?.username || "loser",
     duration: 0,
   });
-  await upsertRanking(winner?.username || "winner", loser?.username || "loser");
+  await upsertRanking(winner, loser);
   io.to(room.roomCode).emit("match_finished", {
     roomCode: room.roomCode,
     winnerSocketId: winner?.socketId || null,
@@ -179,6 +268,35 @@ async function finishMatch(io, room, winner, loser) {
     loser: loser?.username || "loser",
   });
   roomState.delete(room.roomCode);
+}
+
+async function finishRound(io, room, winner, loser) {
+  if (!winner || !loser) return;
+  winner.roundWins = (winner.roundWins || 0) + 1;
+  io.to(room.roomCode).emit("round_finished", {
+    roomCode: room.roomCode,
+    currentRound: room.currentRound || 1,
+    winnerSocketId: winner.socketId,
+    loserSocketId: loser.socketId,
+    players: playersPayload(room),
+  });
+
+  if ((winner.roundWins || 0) >= 2) {
+    await finishMatch(io, room, winner, loser);
+    return;
+  }
+
+  room.currentRound = (room.currentRound || 1) + 1;
+  room.players.forEach((player) => {
+    player.health = player.maxHealth;
+    player.stamina = player.maxStamina;
+  });
+
+  io.to(room.roomCode).emit("round_started", {
+    roomCode: room.roomCode,
+    currentRound: room.currentRound,
+    players: playersPayload(room),
+  });
 }
 
 async function handleLeave(socket, io, disconnected = false) {

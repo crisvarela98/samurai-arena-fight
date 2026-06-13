@@ -35,6 +35,7 @@ class ResultScene(BaseScene):
                 self.game.shared["online_match_data"] = None
                 self.game.shared["online_match_started"] = False
                 self.game.shared["online_battle_exit"] = False
+                self.game.shared["result_detail"] = None
                 self.game.go("menu")
 
     def draw(self, surface):
@@ -65,5 +66,9 @@ class ResultScene(BaseScene):
         message = descriptions.get(result, str(result))
         body = self.body_font.render(message, True, (235, 230, 220))
         surface.blit(body, body.get_rect(center=(790, 368)))
+        detail = self.game.shared.get("result_detail")
+        if detail:
+            detail_text = self.body_font.render(str(detail).upper(), True, color)
+            surface.blit(detail_text, detail_text.get_rect(center=(790, 408)))
         self.button.draw(surface, selected=True)
         draw_footer(surface, "La arena siempre recompensa a quien aprende del ultimo duelo")

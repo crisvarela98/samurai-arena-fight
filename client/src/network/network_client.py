@@ -20,8 +20,9 @@ class NetworkState:
 
 
 class NetworkClient:
-    def __init__(self, server_url):
+    def __init__(self, server_url, auth_token=None):
         self.server_url = self.normalize_server_url(server_url)
+        self.auth_token = auth_token
         self.state = NetworkState()
         self.sio = None
         self.callbacks = {}
@@ -109,6 +110,14 @@ class NetworkClient:
         def health_update(data):
             self._emit_callback("health_update", data)
 
+        @self.sio.on("round_finished")
+        def round_finished(data):
+            self._emit_callback("round_finished", data)
+
+        @self.sio.on("round_started")
+        def round_started(data):
+            self._emit_callback("round_started", data)
+
         @self.sio.on("match_finished")
         def match_finished(data):
             self._emit_callback("match_finished", data)
@@ -143,6 +152,16 @@ class NetworkClient:
         self.state.role = None
         return normalized
 
+    def set_auth_token(self, token):
+        if token == self.auth_token:
+            return
+        if self.sio and self.sio.connected:
+            self.disconnect()
+        self.auth_token = token
+
+    def _auth_headers(self):
+        return {"Authorization": f"Bearer {self.auth_token}"} if self.auth_token else {}
+
     def rest_url(self, path):
         return f"{self.server_url.rstrip('/')}/{path.lstrip('/')}"
 
@@ -152,18 +171,20 @@ class NetworkClient:
         return response.json()
 
     def fetch_rooms(self, timeout=3.0):
-        response = requests.get(self.rest_url("/api/rooms"), timeout=timeout)
+        response = requests.get(self.rest_url("/api/rooms"), headers=self._auth_headers(), timeout=timeout)
         response.raise_for_status()
         return response.json()
 
     def fetch_ranking(self, timeout=3.0):
-        response = requests.get(self.rest_url("/api/ranking"), timeout=timeout)
+        response = requests.get(self.rest_url("/api/ranking"), headers=self._auth_headers(), timeout=timeout)
         response.raise_for_status()
         return response.json()
 
     def connect(self):
+        if not self.auth_token:
+            raise RuntimeError("Inicia sesion antes de entrar al modo online")
         if self.sio and not self.sio.connected:
-            self.sio.connect(self.server_url, transports=["websocket", "polling"])
+            self.sio.connect(self.server_url, auth={"token": self.auth_token}, transports=["websocket", "polling"])
             self.state.connected = True
 
     def disconnect(self):
@@ -172,19 +193,19 @@ class NetworkClient:
         self.state.connected = False
         self.state.socket_id = None
 
-    def create_room(self, username="player", platform="pc", fighter_id="kenji", arena_id="coliseo_de_acero"):
+    def create_room(self, username="player", platform="pc", fighter_id=None, arena_id="coliseo_de_acero", online_fighter=None):
         if self.sio:
             self.sio.emit(
                 "create_room",
                 {
                     "username": username,
                     "platform": platform,
-                    "fighterId": fighter_id,
                     "arenaId": arena_id,
+                    "onlineFighter": online_fighter or {},
                 },
             )
 
-    def join_room(self, room_code, username="player", platform="pc", fighter_id="kenji", arena_id="coliseo_de_acero"):
+    def join_room(self, room_code, username="player", platform="pc", fighter_id=None, arena_id="coliseo_de_acero", online_fighter=None):
         if self.sio:
             self.sio.emit(
                 "join_room",
@@ -192,8 +213,8 @@ class NetworkClient:
                     "roomCode": room_code,
                     "username": username,
                     "platform": platform,
-                    "fighterId": fighter_id,
                     "arenaId": arena_id,
+                    "onlineFighter": online_fighter or {},
                 },
             )
 

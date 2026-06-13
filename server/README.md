@@ -1,14 +1,21 @@
-# Samurai Arena Fight - Server
+# Backend Samurai Arena Fight
 
-Backend online básico con `Express + Socket.IO + MongoDB`.
-
-## Ejecutar
+Backend Express + Socket.IO + MongoDB con JWT.
 
 ```bash
 npm install
-npm run dev
+copy .env.example .env
+npm start
 ```
 
-## Variables de entorno
+Variables:
 
-Copiar `.env.example` a `.env` y configurar `MONGODB_URI`.
+- `PORT`
+- `MONGODB_URI`
+- `CLIENT_URL`
+- `JWT_SECRET`
+- `JWT_EXPIRES_IN`
+
+Sin MongoDB se habilita un almacenamiento temporal en memoria para pruebas locales.
+
+Online requiere token JWT tanto para REST como para el handshake Socket.IO.

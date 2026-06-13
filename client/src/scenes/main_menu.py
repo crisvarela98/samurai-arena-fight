@@ -14,12 +14,13 @@ class MainMenuScene(BaseScene):
             "assets/ui/menu_main_bg_v2.png",
             size=(self.game.settings["screen_width"], self.game.settings["screen_height"]),
         )
-        self.button_actions = ["quick", "story", "online", "options"]
+        self.button_actions = ["story", "online", "account", "options", "exit"]
         self.buttons = [
-            Button((876, 214, 286, 64), "JUEGO RAPIDO", variant="primary"),
-            Button((876, 298, 286, 64), "MODO HISTORIA"),
-            Button((876, 382, 286, 64), "ONLINE", variant="primary"),
-            Button((876, 466, 286, 64), "OPCIONES"),
+            Button((876, 176, 286, 58), "HISTORIA", variant="primary"),
+            Button((876, 248, 286, 58), "ONLINE", variant="primary"),
+            Button((876, 320, 286, 58), "CUENTA"),
+            Button((876, 392, 286, 58), "OPCIONES"),
+            Button((876, 464, 286, 58), "SALIR", variant="danger"),
         ]
 
     def handle_event(self, event):
@@ -34,20 +35,22 @@ class MainMenuScene(BaseScene):
                 return
 
     def _trigger_action(self, action):
-        if action == "quick":
-            self.game.shared["match_mode"] = "local"
-            self.game.shared["menu_entry"] = "quick"
-            self.game.go("character")
-        elif action == "story":
-            self.game.shared["match_mode"] = "local"
+        if action == "story":
+            self.game.shared["match_mode"] = "story"
             self.game.shared["menu_entry"] = "story"
-            self.game.go("character")
+            self.game.go("story_map")
         elif action == "online":
-            self.game.shared["match_mode"] = "online"
-            self.game.shared["menu_entry"] = "online"
-            self.game.go("character")
+            if not self.game.auth.logged_in:
+                self.game.shared["auth_return_scene"] = "online_character_create"
+                self.game.go("login")
+            else:
+                self.game.go("online_character_create")
+        elif action == "account":
+            self.game.go("account")
         elif action == "options":
             self.game.go("platform")
+        elif action == "exit":
+            self.game.running = False
 
     def draw(self, surface):
         surface.blit(self.background, (0, 0))
@@ -63,7 +66,7 @@ class MainMenuScene(BaseScene):
             pygame.draw.rect(right_shadow, (4, 4, 7, alpha), pygame.Rect(x, 0, 1280 - x, 720))
         surface.blit(right_shadow, (0, 0))
 
-        menu_panel = pygame.Rect(820, 112, 398, 468)
+        menu_panel = pygame.Rect(820, 98, 398, 506)
         draw_panel(surface, menu_panel, accent=GOLD, fill=(8, 10, 14, 204))
 
         border = pygame.Surface((menu_panel.width, menu_panel.height), pygame.SRCALPHA)
@@ -74,4 +77,4 @@ class MainMenuScene(BaseScene):
         self.draw_music_toggle(surface)
 
         for index, button in enumerate(self.buttons):
-            button.draw(surface, selected=index in {0, 2})
+            button.draw(surface, selected=index in {0, 1})

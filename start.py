@@ -14,11 +14,11 @@ CLIENT_DIR = ROOT / "client"
 SERVER_DIR = ROOT / "server"
 
 
-def spawn(command: list[str], cwd: Path) -> subprocess.Popen:
+def spawn(command: list[str], cwd: Path, env: dict[str, str] | None = None) -> subprocess.Popen:
     creationflags = 0
     if os.name == "nt":
         creationflags = subprocess.CREATE_NEW_PROCESS_GROUP
-    return subprocess.Popen(command, cwd=str(cwd), creationflags=creationflags)
+    return subprocess.Popen(command, cwd=str(cwd), creationflags=creationflags, env=env)
 
 
 def resolve_npm() -> str | None:
@@ -37,7 +37,9 @@ def main() -> int:
             return 1
         server = spawn([npm, "run", "dev"], SERVER_DIR)
         time.sleep(2)
-        client = spawn([sys.executable, "main.py"], CLIENT_DIR)
+        client_env = os.environ.copy()
+        client_env["SAMURAI_SERVER_URL"] = "http://localhost:3000"
+        client = spawn([sys.executable, "main.py"], CLIENT_DIR, env=client_env)
         print("Server and client started. Close this window to stop both.")
         while True:
             if server.poll() is not None:

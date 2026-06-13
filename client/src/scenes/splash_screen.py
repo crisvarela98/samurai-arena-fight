@@ -28,7 +28,10 @@ class SplashScreenScene(BaseScene):
     def update(self, dt):
         self.timer += dt
         if self.timer >= self.duration:
-            self.game.go("menu")
+            if self.game.progress.data.get("first_time_completed"):
+                self.game.go("menu")
+            else:
+                self.game.go("story_intro")
 
     def _draw_logo(self, surface, rect, logo, label):
         if logo is not None:

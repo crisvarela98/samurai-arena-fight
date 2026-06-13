@@ -1,0 +1,75 @@
+[
+  {
+    "id": "mission_1",
+    "number": 1,
+    "title": "Entre los muertos",
+    "summary": "Kenji despierta en un campo cubierto de cuerpos y pelea por puro instinto.",
+    "arena_id": "templo_en_llamas",
+    "ftue": true,
+    "max_duration_seconds": 120,
+    "combat_deadline_seconds": 108,
+    "intro_cutscene": "prologue",
+    "outro_cutscene": "after_mission_1",
+    "memory_fragment": "memory_01",
+    "reward_coins": 100,
+    "fights": ["soldier_weak"]
+  },
+  {
+    "id": "mission_2",
+    "number": 2,
+    "title": "Los cazadores",
+    "summary": "Mercenarios reconocen a Kenji como el Demonio de Acero.",
+    "arena_id": "templo_en_llamas",
+    "intro_cutscene": "before_mission_2",
+    "outro_cutscene": "after_mission_2",
+    "reward_coins": 160,
+    "fights": ["hunter_blade", "hunter_axe"]
+  },
+  {
+    "id": "mission_3",
+    "number": 3,
+    "title": "Arena de sangre",
+    "summary": "Capturado, Kenji debe sobrevivir al coliseo clandestino.",
+    "arena_id": "coliseo_de_acero",
+    "intro_cutscene": "before_mission_3",
+    "outro_cutscene": "after_mission_3",
+    "reward_coins": 240,
+    "fights": ["arena_recruit", "arena_brute", "arena_keeper"]
+  },
+  {
+    "id": "mission_4",
+    "number": 4,
+    "title": "El clan roto",
+    "summary": "Un emblema destruido conecta a Kenji con recuerdos incompatibles.",
+    "arena_id": "templo_en_llamas",
+    "intro_cutscene": "before_mission_4",
+    "outro_cutscene": "after_mission_4",
+    "memory_fragment": "memory_02",
+    "reward_coins": 220,
+    "fights": ["ruin_guard", "clan_survivor"]
+  },
+  {
+    "id": "mission_5",
+    "number": 5,
+    "title": "El campeon del coliseo",
+    "summary": "La arena enfrenta a Kenji con su guerrero mas temido.",
+    "arena_id": "coliseo_de_acero",
+    "intro_cutscene": "before_mission_5",
+    "outro_cutscene": "after_mission_5",
+    "memory_fragment": "memory_03",
+    "reward_coins": 320,
+    "fights": ["champion_guard", "iron_champion"]
+  },
+  {
+    "id": "mission_6",
+    "number": 6,
+    "title": "El nombre prohibido",
+    "summary": "Takeda confirma que la memoria de Kenji fue arrancada deliberadamente.",
+    "arena_id": "coliseo_de_acero",
+    "intro_cutscene": "before_mission_6",
+    "outro_cutscene": "act_1_finale",
+    "memory_fragment": "memory_04",
+    "reward_coins": 500,
+    "fights": ["masked_blade", "red_night_guard", "memory_executioner"]
+  }
+]

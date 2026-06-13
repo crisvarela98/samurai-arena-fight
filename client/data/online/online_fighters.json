@@ -1,0 +1,18 @@
+{
+  "base": {
+    "max_health": 115,
+    "max_stamina": 100,
+    "speed": 220,
+    "attack_power": 18,
+    "defense": 8,
+    "range": 72,
+    "sprite_sheet": "assets/fighters/hayato_sheet_v2.png",
+    "portrait": "assets/fighters/portraits/hayato_portrait.png"
+  },
+  "default_profile": {
+    "username": "guerrero",
+    "clan_id": "cuervo_negro",
+    "weapon_id": "katana",
+    "color": [170, 48, 52]
+  }
+}

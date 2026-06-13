@@ -1,0 +1,9 @@
+[
+  {
+    "id": "act_1",
+    "number": 1,
+    "title": "El Despertar",
+    "description": "Kenji despierta sin memoria y sigue el rastro de la Noche Roja.",
+    "missions": ["mission_1", "mission_2", "mission_3", "mission_4", "mission_5", "mission_6"]
+  }
+]

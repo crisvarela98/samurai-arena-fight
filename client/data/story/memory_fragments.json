@@ -1,0 +1,6 @@
+[
+  {"id":"memory_01","title":"La mano del niño","text":"Una mano pequeña sostiene la armadura de Kenji mientras una aldea arde detras.","truth":"unknown"},
+  {"id":"memory_02","title":"Dos versiones","text":"Kenji defiende la puerta del clan. Un parpadeo despues, su espada atraviesa al guardian.","truth":"contradictory"},
+  {"id":"memory_03","title":"La mesa de los clanes","text":"Doce lideres rodean una katana negra. Takeda observa desde las sombras.","truth":"partial"},
+  {"id":"memory_04","title":"La voz que borra","text":"No podemos matarlo. Quitenle el nombre y dejen que el mundo termine el trabajo.","truth":"partial"}
+]

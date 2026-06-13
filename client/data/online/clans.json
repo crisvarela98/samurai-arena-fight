@@ -1,0 +1,6 @@
+[
+  {"id":"cuervo_negro","name":"Clan del Cuervo Negro","style":"Velocidad y esquive","color":[32,24,28],"accent":[190,38,48],"bonuses":{"speed":24,"defense":-2}},
+  {"id":"tigre_hierro","name":"Clan del Tigre de Hierro","style":"Fuerza bruta","color":[92,63,31],"accent":[214,164,66],"bonuses":{"attack_power":4,"speed":-18}},
+  {"id":"serpiente_blanca","name":"Clan de la Serpiente Blanca","style":"Tecnica y precision","color":[215,220,226],"accent":[55,118,205],"bonuses":{"max_stamina":18,"max_health":-10}},
+  {"id":"lobo_carmesi","name":"Clan del Lobo Carmesi","style":"Equilibrado y agresivo","color":[112,28,34],"accent":[138,142,150],"bonuses":{"max_health":5,"attack_power":1,"speed":5}}
+]

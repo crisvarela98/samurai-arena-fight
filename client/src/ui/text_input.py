@@ -5,22 +5,29 @@ from src.ui.menu_theme import EBONY, MIST, get_font
 
 
 class TextInput:
-    def __init__(self, rect, placeholder=""):
+    def __init__(self, rect, placeholder="", password=False, max_length=64):
         self.rect = pygame.Rect(rect)
         self.placeholder = placeholder
         self.text = ""
         self.focused = False
+        self.password = password
+        self.max_length = max_length
         self.font = get_font("body", 26, bold=True)
 
     def handle_event(self, event):
         if event.type == pygame.MOUSEBUTTONDOWN:
             self.focused = self.rect.collidepoint(event.pos)
+            if self.focused:
+                pygame.key.start_text_input()
+            else:
+                pygame.key.stop_text_input()
         elif event.type == pygame.KEYDOWN and self.focused:
             if event.key == pygame.K_BACKSPACE:
                 self.text = self.text[:-1]
             elif event.key == pygame.K_RETURN:
                 self.focused = False
-            elif len(event.unicode) == 1:
+                pygame.key.stop_text_input()
+            elif len(event.unicode) == 1 and len(self.text) < self.max_length:
                 self.text += event.unicode
 
     def draw(self, surface):
@@ -36,7 +43,7 @@ class TextInput:
         pygame.draw.rect(body, (255, 255, 255, 16), pygame.Rect(12, 10, self.rect.width - 24, 10), border_radius=999)
         surface.blit(body, self.rect.topleft)
 
-        value = self.text or self.placeholder
+        value = ("*" * len(self.text) if self.password and self.text else self.text) or self.placeholder
         color = LIGHT if self.text else MIST
         label = self.font.render(value, True, color)
         surface.blit(label, (self.rect.x + 16, self.rect.y + 10))

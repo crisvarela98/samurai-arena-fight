@@ -1,0 +1,22 @@
+[
+  {
+    "id":"prologue","mission_before":null,"mission_after":1,"skippable":true,"next_scene":"story_battle",
+    "panels":[
+      {"image":null,"text":"La lluvia borra la sangre, pero no los cuerpos.","speaker":"NARRADOR","duration":3.5,"sound":"rain"},
+      {"image":"assets/arenas/templo_en_llamas_bg.png","text":"Kenji despierta entre los muertos. No recuerda su nombre ni como llego alli.","speaker":"NARRADOR","duration":4.0,"sound":"rain"},
+      {"image":"assets/fighters/portraits/kenji_portrait.png","text":"Solo conserva una katana negra y un instinto que su cuerpo no ha olvidado.","speaker":"NARRADOR","duration":3.8,"sound":"rain"},
+      {"image":"assets/arenas/templo_en_llamas_bg.png","text":"Uno sigue vivo. Y reconoce la espada.","speaker":"NARRADOR","duration":2.8,"sound":"rain"}
+    ]
+  },
+  {"id":"after_mission_1","mission_before":1,"mission_after":2,"skippable":true,"next_scene":"menu","panels":[{"image":"assets/fighters/portraits/kenji_portrait.png","text":"El Demonio de Acero debe morir.","speaker":"VOZ MISTERIOSA","duration":3.2,"sound":null}]},
+  {"id":"before_mission_2","mission_before":1,"mission_after":2,"skippable":true,"next_scene":"story_battle","panels":[{"image":"assets/arenas/templo_en_llamas_bg.png","text":"Los cazadores siguen las huellas de la katana negra.","speaker":"NARRADOR","duration":3.0,"sound":null}]},
+  {"id":"after_mission_2","mission_before":2,"mission_after":3,"skippable":true,"next_scene":"story_map","panels":[{"image":"assets/fighters/portraits/hayato_portrait.png","text":"Todos conocen tu rostro, Kenji. Solo tu lo has olvidado.","speaker":"TAKEDA","duration":3.6,"sound":null}]},
+  {"id":"before_mission_3","mission_before":2,"mission_after":3,"skippable":true,"next_scene":"story_battle","panels":[{"image":"assets/arenas/coliseo_de_acero_bg.png","text":"En el coliseo, un nombre vale menos que una victoria.","speaker":"MAESTRO DE ARENA","duration":3.4,"sound":"fire"}]},
+  {"id":"after_mission_3","mission_before":3,"mission_after":4,"skippable":true,"next_scene":"story_map","panels":[{"image":"assets/arenas/coliseo_de_acero_bg.png","text":"El publico corea un titulo que Kenji no reconoce: Demonio de Acero.","speaker":"NARRADOR","duration":3.4,"sound":null}]},
+  {"id":"before_mission_4","mission_before":3,"mission_after":4,"skippable":true,"next_scene":"story_battle","panels":[{"image":"assets/arenas/templo_en_llamas_bg.png","text":"Bajo las cenizas aparece el emblema de un clan borrado de la historia.","speaker":"NARRADOR","duration":3.4,"sound":null}]},
+  {"id":"after_mission_4","mission_before":4,"mission_after":5,"skippable":true,"next_scene":"memory_fragment","panels":[{"image":"assets/fighters/portraits/kenji_portrait.png","text":"En un recuerdo protege a un niño. En otro, incendia la misma aldea.","speaker":"NARRADOR","duration":4.0,"sound":null}]},
+  {"id":"before_mission_5","mission_before":4,"mission_after":5,"skippable":true,"next_scene":"story_battle","panels":[{"image":"assets/arenas/coliseo_de_acero_bg.png","text":"El campeon promete revelar una verdad si Kenji sobrevive.","speaker":"NARRADOR","duration":3.3,"sound":null}]},
+  {"id":"after_mission_5","mission_before":5,"mission_after":6,"skippable":true,"next_scene":"memory_fragment","panels":[{"image":"assets/fighters/portraits/hayato_portrait.png","text":"Tu memoria no se perdio. Alguien pago para arrancarla.","speaker":"CAMPEON","duration":3.8,"sound":null}]},
+  {"id":"before_mission_6","mission_before":5,"mission_after":6,"skippable":true,"next_scene":"story_battle","panels":[{"image":"assets/fighters/portraits/hayato_portrait.png","text":"Takeda conduce a Kenji hacia el nombre que todos tienen prohibido pronunciar.","speaker":"NARRADOR","duration":3.8,"sound":null}]},
+  {"id":"act_1_finale","mission_before":6,"mission_after":null,"skippable":true,"next_scene":"story_map","panels":[{"image":"assets/fighters/portraits/kenji_portrait.png","text":"La Noche Roja no fue una masacre. Fue un ritual. Y Kenji era la llave.","speaker":"TAKEDA","duration":4.4,"sound":null},{"image":"assets/arenas/templo_en_llamas_bg.png","text":"FIN DEL ACTO 1 - EL DESPERTAR","speaker":"NARRADOR","duration":4.0,"sound":null}]}
+]

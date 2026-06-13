@@ -1,0 +1,11 @@
+{
+  "first_time_completed": false,
+  "story_act": 1,
+  "story_mission": 0,
+  "completed_missions": [],
+  "unlocked_modes": ["Historia"],
+  "coins": 0,
+  "unlocked_weapons": ["katana"],
+  "unlocked_clans": ["cuervo_negro"],
+  "selected_story_character": "kenji"
+}

@@ -6,8 +6,8 @@
   "platform": "pc",
   "master_volume": 1.0,
   "music_volume": 0.7,
-  "music_enabled": true,
+  "music_enabled": false,
   "sfx_volume": 0.8,
-  "server_url": "http://localhost:3000",
+  "server_url": "https://samurai-arena-fight.onrender.com",
   "username": "player"
 }

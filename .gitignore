@@ -5,8 +5,10 @@ __pycache__/
 node_modules/
 .env
 client/.venv/
+.venv/
 client/.pytest_cache/
 server/node_modules/
 server/.env
+client/data/session.json
 upstream/
 client/tmp/

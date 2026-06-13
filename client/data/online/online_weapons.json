@@ -1,0 +1,7 @@
+[
+  {"id":"katana","name":"Katana","description":"Rapida, equilibrada y de alcance medio.","damage_light":12,"damage_heavy":20,"stamina_cost":11,"range":74,"cooldown":0.30,"bonuses":{"speed":6}},
+  {"id":"espada","name":"Espada","description":"Mas pesada y poderosa, con menor velocidad.","damage_light":15,"damage_heavy":25,"stamina_cost":15,"range":72,"cooldown":0.42,"bonuses":{"attack_power":3,"speed":-12}},
+  {"id":"nunchakus","name":"Nunchakus","description":"Combos muy rapidos de corto alcance.","damage_light":9,"damage_heavy":15,"stamina_cost":8,"range":55,"cooldown":0.20,"bonuses":{"speed":18,"attack_power":-2}},
+  {"id":"baston","name":"Baston","description":"Control, defensa alta y alcance medio.","damage_light":11,"damage_heavy":19,"stamina_cost":10,"range":82,"cooldown":0.34,"bonuses":{"defense":3}},
+  {"id":"lanza","name":"Lanza","description":"Largo alcance con ataques mas lentos.","damage_light":13,"damage_heavy":23,"stamina_cost":14,"range":104,"cooldown":0.48,"bonuses":{"speed":-14,"attack_power":2}}
+]

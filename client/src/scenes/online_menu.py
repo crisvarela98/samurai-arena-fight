@@ -42,10 +42,15 @@ class OnlineMenuScene(BaseScene):
         self.label_font = get_font("heading", 21, bold=True)
 
     def on_enter(self):
+        if not self.game.auth.logged_in:
+            self.game.shared["auth_return_scene"] = "online_character_create"
+            self.game.go("login")
+            return
         self.net = self.game.network
         self._bind_network_callbacks()
         self.input_server.text = self.net.server_url
-        self.input_username.text = self.game.shared.get("online_username", self.game.settings.get("username", "player"))
+        profile = self.game.shared.get("online_fighter") or {}
+        self.input_username.text = profile.get("username", self.game.shared.get("online_username", "player"))
         self.input_room.text = self.game.shared.get("online_room") or ""
         self.game.shared["online_open_lobby"] = False
         self._refresh_rooms(silent=True)
@@ -64,7 +69,8 @@ class OnlineMenuScene(BaseScene):
         self.status_color = color
 
     def _selected_fighter_name(self):
-        return self.fighter_names.get(self.game.shared["selected_fighter"], self.game.shared["selected_fighter"])
+        profile = self.game.shared.get("online_fighter") or {}
+        return profile.get("clan_name", "GUERRERO ONLINE")
 
     def _selected_arena_name(self):
         return self.arena_names.get(self.game.shared["selected_arena"], self.game.shared["selected_arena"])
@@ -72,7 +78,11 @@ class OnlineMenuScene(BaseScene):
     def _apply_profile(self):
         username = self.input_username.text.strip() or "player"
         self.game.shared["online_username"] = username
+        profile = dict(self.game.shared.get("online_fighter") or {})
+        profile["username"] = username
+        self.game.shared["online_fighter"] = profile
         self.net.set_server_url(self.input_server.text.strip())
+        self.game.auth.set_server_url(self.net.server_url)
         self.game.save_settings()
         return username
 
@@ -107,8 +117,8 @@ class OnlineMenuScene(BaseScene):
             self.net.create_room(
                 username=username,
                 platform=self.game.shared["selected_platform"],
-                fighter_id=self.game.shared["selected_fighter"],
                 arena_id=self.game.shared["selected_arena"],
+                online_fighter=self.game.shared.get("online_fighter"),
             )
             self.game.shared["online_role"] = "host"
             self.game.shared["online_match_started"] = False
@@ -129,8 +139,8 @@ class OnlineMenuScene(BaseScene):
                 room_code=room_code,
                 username=username,
                 platform=self.game.shared["selected_platform"],
-                fighter_id=self.game.shared["selected_fighter"],
                 arena_id=self.game.shared["selected_arena"],
+                online_fighter=self.game.shared.get("online_fighter"),
             )
             self.game.shared["online_role"] = "guest"
             self.game.shared["online_match_started"] = False
@@ -227,8 +237,9 @@ class OnlineMenuScene(BaseScene):
         self.join_button.draw(surface)
 
         draw_chip(surface, pygame.Rect(92, 564, 150, 30), "ANDROID")
-        draw_chip(surface, pygame.Rect(252, 564, 168, 30), self._selected_fighter_name().upper())
-        draw_chip(surface, pygame.Rect(430, 564, 214, 30), self._selected_arena_name().upper(), accent=(80, 180, 95))
+        draw_chip(surface, pygame.Rect(252, 564, 214, 30), self._selected_fighter_name().upper())
+        weapon_name = (self.game.shared.get("online_fighter") or {}).get("weapon_name", "KATANA")
+        draw_chip(surface, pygame.Rect(478, 564, 166, 30), weapon_name.upper(), accent=(80, 180, 95))
 
         tips = [
             "1. Crea la sala desde el dispositivo principal.",

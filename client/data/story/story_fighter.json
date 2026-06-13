@@ -1,0 +1,14 @@
+{
+  "id": "kenji",
+  "name": "Kenji",
+  "max_health": 120,
+  "max_stamina": 110,
+  "speed": 245,
+  "attack_power": 19,
+  "defense": 9,
+  "weapon_id": "katana",
+  "sprite_sheet": "assets/fighters/kenji_sheet_v2.png",
+  "portrait": "assets/fighters/portraits/kenji_portrait.png",
+  "identity": "Desconocida",
+  "weapon_description": "Katana negra marcada con un simbolo borrado."
+}

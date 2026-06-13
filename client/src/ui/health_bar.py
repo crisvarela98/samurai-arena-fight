@@ -3,15 +3,18 @@ import pygame
 from src.core.constants import GOLD, GREEN, LIGHT, RED
 
 
-def draw_bar(surface, x, y, width, height, value, maximum, label, fill_color=None):
+def draw_bar(surface, x, y, width, height, value, maximum, label, fill_color=None, value_color=None, label_color=None, track_color=None):
     ratio = 0 if maximum <= 0 else max(0.0, min(1.0, value / maximum))
     fill_color = fill_color or (GREEN if label == "STAMINA" else RED)
+    value_color = value_color or (GOLD if label != "STAMINA" else LIGHT)
+    label_color = label_color or LIGHT
+    track_color = track_color or (12, 14, 18, 228)
 
     shadow_rect = pygame.Rect(x, y + 4, width, height)
     pygame.draw.rect(surface, (0, 0, 0, 76), shadow_rect, border_radius=12)
 
     track = pygame.Surface((width, height), pygame.SRCALPHA)
-    pygame.draw.rect(track, (12, 14, 18, 228), track.get_rect(), border_radius=12)
+    pygame.draw.rect(track, track_color, track.get_rect(), border_radius=12)
     pygame.draw.rect(track, (255, 255, 255, 18), track.get_rect(), 1, border_radius=12)
     pygame.draw.rect(track, (255, 255, 255, 16), pygame.Rect(8, 6, width - 16, max(4, height // 3)), border_radius=999)
     fill_width = max(8, int((width - 4) * ratio)) if ratio > 0 else 0
@@ -28,8 +31,8 @@ def draw_bar(surface, x, y, width, height, value, maximum, label, fill_color=Non
 
     label_font = pygame.font.SysFont("bahnschrift", 20, bold=True)
     value_font = pygame.font.SysFont("arial", 16, bold=True)
-    text = label_font.render(label, True, LIGHT)
-    value_text = value_font.render(f"{int(value)}/{int(maximum)}", True, GOLD if label != "STAMINA" else LIGHT)
+    text = label_font.render(label, True, label_color)
+    value_text = value_font.render(f"{int(value)}/{int(maximum)}", True, value_color)
     surface.blit(text, (x + 8, y - 24))
     surface.blit(value_text, (x + width - value_text.get_width() - 10, y - 22))
 

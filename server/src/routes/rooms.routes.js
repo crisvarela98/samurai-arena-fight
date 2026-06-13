@@ -1,9 +1,9 @@
 const router = require("express").Router();
-const Room = require("../models/Room");
+const { authMiddleware } = require("../middleware/auth.middleware");
+const { listRooms } = require("../services/room.service");
 
-router.get("/", async (_req, res) => {
-  const rooms = await Room.find().sort({ createdAt: -1 }).limit(20);
-  res.json(rooms);
+router.get("/", authMiddleware, async (_req, res) => {
+  res.json(await listRooms());
 });
 
 module.exports = router;

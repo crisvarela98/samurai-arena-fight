@@ -65,21 +65,16 @@ class AssetLoader:
 
     def _remove_chroma(self, image, chroma_key, tolerance):
         cleaned = image.copy()
-        width, height = cleaned.get_size()
-        red_key, green_key, blue_key = chroma_key
-
-        for y in range(height):
-            for x in range(width):
-                red, green, blue, alpha = cleaned.get_at((x, y))
-                if (
-                    abs(red - red_key) <= tolerance
-                    and abs(green - green_key) <= tolerance
-                    and abs(blue - blue_key) <= tolerance
-                ):
-                    cleaned.set_at((x, y), (red, green, blue, 0))
-                else:
-                    cleaned.set_at((x, y), (red, green, blue, alpha))
-
+        pygame.transform.threshold(
+            cleaned,
+            image,
+            (*chroma_key, 255),
+            (tolerance, tolerance, tolerance, 255),
+            (0, 0, 0, 0),
+            1,
+            None,
+            True,
+        )
         return cleaned
 
     def _despill_key(self, image, chroma_key):

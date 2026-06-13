@@ -69,8 +69,9 @@ class LobbyScene(BaseScene):
         role = (self.game.shared.get("online_role") or "-").upper()
         username = self.game.shared.get("online_username", "player")
         arena = self.game.shared.get("selected_arena", "coliseo_de_acero").replace("_", " ").title()
-        fighter = self.game.shared.get("selected_fighter", "kenji").title()
-        portrait = self.fighter_portraits.get(self.game.shared.get("selected_fighter", "kenji"))
+        online_fighter = self.game.shared.get("online_fighter") or {}
+        fighter = online_fighter.get("clan_name", "Guerrero online")
+        portrait = self.fighter_portraits.get("hayato")
         status_text = "Conectado" if self.net and self.net.state.connected else "Sin conexion"
         status_color = GREEN if self.net and self.net.state.connected else RED
 
@@ -87,10 +88,11 @@ class LobbyScene(BaseScene):
 
         draw_chip(surface, pygame.Rect(210, 318, 136, 32), f"ROL {role}")
         draw_chip(surface, pygame.Rect(358, 318, 160, 32), "ANDROID", accent=(80, 180, 95))
-        draw_chip(surface, pygame.Rect(530, 318, 190, 32), fighter.upper(), accent=(80, 180, 95))
+        draw_chip(surface, pygame.Rect(530, 318, 250, 32), fighter.upper(), accent=(80, 180, 95))
 
         left_lines = [
             f"Jugador: {username}",
+            f"Arma: {online_fighter.get('weapon_name', 'Katana')}",
             f"Arena: {arena}",
             f"Servidor: {(self.net.server_url if self.net else '-').replace('http://', '').replace('https://', '')}",
             f"Estado de red: {status_text}",
@@ -105,12 +107,13 @@ class LobbyScene(BaseScene):
         if players:
             for index, player in enumerate(players[:2]):
                 y = 244 + index * 98
-                portrait_id = player.get("fighterId", "kenji")
-                player_portrait = self.fighter_portraits.get(portrait_id)
+                player_portrait = self.fighter_portraits.get("hayato")
                 draw_portrait_badge(surface, pygame.Rect(768, y, 74, 98), player_portrait, accent=(80, 180, 95))
                 draw_chip(surface, pygame.Rect(856, y + 12, 112, 28), "LISTO", accent=(80, 180, 95))
                 name = self.small.render(player.get("username", "player").upper(), True, GOLD)
-                fighter_line = self.tiny.render(player.get("fighterId", "fighter").replace("_", " ").title(), True, LIGHT)
+                fighter_line = self.tiny.render(
+                    f"{player.get('clanName', 'Clan')} / {player.get('weaponName', 'Arma')}", True, LIGHT
+                )
                 surface.blit(name, (856, y + 46))
                 surface.blit(fighter_line, (856, y + 74))
         else:

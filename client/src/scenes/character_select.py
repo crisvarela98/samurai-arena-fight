@@ -42,8 +42,7 @@ class CharacterSelectScene(BaseScene):
                 7,
                 scale_height=140,
                 chroma_key=(0, 255, 0),
-                chroma_tolerance=92,
-                despill=True,
+                chroma_tolerance=110,
             )[0]
             portrait_path = fighter.get("portrait")
             self.hero_portraits[fighter["id"]] = (
