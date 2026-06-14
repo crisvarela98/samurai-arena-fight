@@ -1,7 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 
-const { corsOptions, buildAllowedOrigins } = require("./config/cors");
+const { corsOptions } = require("./config/cors");
 const usersRoutes = require("./routes/users.routes");
 const roomsRoutes = require("./routes/rooms.routes");
 const rankingRoutes = require("./routes/ranking.routes");
@@ -23,8 +23,6 @@ app.get("/health", (_req, res) => {
   res.json({
     ok: true,
     message: "Samurai Arena Fight server healthy",
-    environment: process.env.NODE_ENV || "development",
-    allowedOrigins: buildAllowedOrigins(),
   });
 });
 
