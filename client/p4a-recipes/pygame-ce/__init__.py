@@ -7,7 +7,7 @@ from pythonforandroid.toolchain import current_directory
 class PygameCeRecipe(CompiledComponentsPythonRecipe):
     version = "2.4.0"
     url = "https://github.com/pygame-community/pygame-ce/archive/{version}.tar.gz"
-    site_packages_name = "pygame-ce"
+    site_packages_name = "pygame"
     name = "pygame-ce"
     depends = ["sdl2", "sdl2_image", "sdl2_mixer", "sdl2_ttf", "setuptools", "jpeg", "png"]
     call_hostpython_via_targetpython = False
@@ -20,12 +20,16 @@ class PygameCeRecipe(CompiledComponentsPythonRecipe):
                 setup_template = template_file.read()
             png = self.get_recipe("png", self.ctx)
             png_lib_dir = join(png.get_build_dir(arch.arch), ".libs")
-            png_inc_dir = png.get_build_dir(arch.arch)
+            png_inc_dir = png.get_build_dir(arch)
             jpeg = self.get_recipe("jpeg", self.ctx)
             jpeg_inc_dir = jpeg_lib_dir = jpeg.get_build_dir(arch.arch)
             mixer_includes = "".join(
                 f"-I{include_dir} "
                 for include_dir in self.get_recipe("sdl2_mixer", self.ctx).get_include_dirs(arch)
+            )
+            image_includes = "".join(
+                f"-I{include_dir} "
+                for include_dir in self.get_recipe("sdl2_image", self.ctx).get_include_dirs(arch)
             )
             setup_file = setup_template.format(
                 sdl_includes=(
@@ -36,7 +40,7 @@ class PygameCeRecipe(CompiledComponentsPythonRecipe):
                     + " -L" + arch.ndk_lib_dir_versioned
                 ),
                 sdl_ttf_includes="-I" + join(self.ctx.bootstrap.build_dir, "jni", "SDL2_ttf"),
-                sdl_image_includes="-I" + join(self.ctx.bootstrap.build_dir, "jni", "SDL2_image"),
+                sdl_image_includes=image_includes,
                 sdl_mixer_includes=mixer_includes,
                 jpeg_includes="-I" + jpeg_inc_dir,
                 png_includes="-I" + png_inc_dir,
@@ -50,7 +54,6 @@ class PygameCeRecipe(CompiledComponentsPythonRecipe):
         environment["USE_SDL2"] = "1"
         environment["PYGAME_CROSS_COMPILE"] = "TRUE"
         environment["PYGAME_ANDROID"] = "TRUE"
-        environment["ANDROID_ROOT"] = join(self.ctx.ndk.sysroot, "usr")
         return environment
 
 

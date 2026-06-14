@@ -70,7 +70,7 @@ class OnlineMenuScene(BaseScene):
 
     def _selected_fighter_name(self):
         profile = self.game.shared.get("online_fighter") or {}
-        return profile.get("clan_name", "GUERRERO ONLINE")
+        return profile.get("fighter_name", profile.get("clan_name", "GUERRERO ONLINE"))
 
     def _selected_arena_name(self):
         return self.arena_names.get(self.game.shared["selected_arena"], self.game.shared["selected_arena"])

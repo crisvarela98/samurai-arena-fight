@@ -5,9 +5,33 @@
     "speed": 220,
     "attack_power": 18,
     "defense": 8,
-    "range": 72,
-    "sprite_sheet": "assets/fighters/hayato_sheet_v2.png",
-    "portrait": "assets/fighters/portraits/hayato_portrait.png"
+    "range": 72
+  },
+  "clan_presets": {
+    "cuervo_negro": {
+      "fighter_name": "Sombra del Cuervo",
+      "sprite_sheet": "assets/fighters/story/ash_hunter_sheet.png",
+      "portrait": "assets/fighters/portraits/story/ash_hunter_portrait.png",
+      "default_color": [170, 48, 52]
+    },
+    "tigre_hierro": {
+      "fighter_name": "Martillo del Tigre",
+      "sprite_sheet": "assets/fighters/story/mercenary_executioner_sheet.png",
+      "portrait": "assets/fighters/portraits/story/mercenary_executioner_portrait.png",
+      "default_color": [202, 162, 68]
+    },
+    "serpiente_blanca": {
+      "fighter_name": "Colmillo Blanco",
+      "sprite_sheet": "assets/fighters/story/clan_survivor_sheet.png",
+      "portrait": "assets/fighters/portraits/story/clan_survivor_portrait.png",
+      "default_color": [220, 220, 224]
+    },
+    "lobo_carmesi": {
+      "fighter_name": "Lobo Carmesi",
+      "sprite_sheet": "assets/fighters/story/masked_blade_sheet.png",
+      "portrait": "assets/fighters/portraits/story/masked_blade_portrait.png",
+      "default_color": [174, 42, 48]
+    }
   },
   "default_profile": {
     "username": "guerrero",

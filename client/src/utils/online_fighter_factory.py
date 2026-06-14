@@ -10,11 +10,18 @@ def load_online_catalog(client_dir):
     return clans, weapons, fighters
 
 
+def get_online_clan_preset(client_dir, clan_id):
+    _, _, fighters = load_online_catalog(client_dir)
+    presets = fighters.get("clan_presets", {})
+    return presets.get(clan_id) or presets.get("cuervo_negro") or {}
+
+
 def build_online_fighter(client_dir, username, clan_id, weapon_id, color):
     clans, weapons, fighters = load_online_catalog(client_dir)
     clan = next(item for item in clans if item["id"] == clan_id)
     weapon = next(item for item in weapons if item["id"] == weapon_id)
     stats = dict(fighters["base"])
+    preset = get_online_clan_preset(client_dir, clan_id)
     for key, value in clan.get("bonuses", {}).items():
         stats[key] = stats.get(key, 0) + value
     for key, value in weapon.get("bonuses", {}).items():
@@ -33,7 +40,8 @@ def build_online_fighter(client_dir, username, clan_id, weapon_id, color):
         "attack_power": max(8, int(stats["attack_power"])),
         "defense": max(1, int(stats["defense"])),
         "range": int(stats["range"]),
-        "sprite_sheet": stats["sprite_sheet"],
-        "portrait": stats["portrait"],
+        "fighter_name": preset.get("fighter_name", clan["name"]),
+        "sprite_sheet": preset.get("sprite_sheet", ""),
+        "portrait": preset.get("portrait", ""),
         "weapon": {key: weapon[key] for key in ("id", "name", "damage_light", "damage_heavy", "stamina_cost", "range", "cooldown")},
     }

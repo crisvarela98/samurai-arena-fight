@@ -1,6 +1,3 @@
-import json
-from pathlib import Path
-
 import pygame
 
 from src.core.base_scene import BaseScene
@@ -8,6 +5,7 @@ from src.core.constants import GOLD, GREEN, LIGHT, RED
 from src.ui.button import Button
 from src.ui.health_bar import draw_portrait_badge
 from src.ui.menu_theme import draw_backdrop, draw_chip, draw_footer, draw_panel, get_font
+from src.utils.online_fighter_factory import get_online_clan_preset
 
 
 class LobbyScene(BaseScene):
@@ -18,13 +16,6 @@ class LobbyScene(BaseScene):
             "assets/ui/menu_online_bg.png",
             size=(self.game.settings["screen_width"], self.game.settings["screen_height"]),
         )
-        root = Path(__file__).resolve().parents[2]
-        fighters = json.loads((root / "data" / "fighters.json").read_text(encoding="utf-8"))
-        self.fighter_portraits = {
-            fighter["id"]: self.game.assets.load_image(fighter["portrait"], trim_alpha=True)
-            for fighter in fighters
-            if fighter.get("portrait")
-        }
         self.font = get_font("heading", 34, bold=True)
         self.small = get_font("body", 22)
         self.tiny = get_font("tiny", 18)
@@ -44,6 +35,16 @@ class LobbyScene(BaseScene):
         self.game.shared["online_match_started"] = False
         self.game.shared["online_match_data"] = None
         self.game.go("menu")
+
+    def _portrait_for_profile(self, profile):
+        portrait_path = profile.get("portrait")
+        if not portrait_path:
+            preset = get_online_clan_preset(
+                self.game.client_dir,
+                profile.get("clan_id") or profile.get("clanId", "cuervo_negro"),
+            )
+            portrait_path = preset.get("portrait", "")
+        return self.game.assets.load_image(portrait_path, trim_alpha=True) if portrait_path else None
 
     def handle_event(self, event):
         if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
@@ -70,8 +71,8 @@ class LobbyScene(BaseScene):
         username = self.game.shared.get("online_username", "player")
         arena = self.game.shared.get("selected_arena", "coliseo_de_acero").replace("_", " ").title()
         online_fighter = self.game.shared.get("online_fighter") or {}
-        fighter = online_fighter.get("clan_name", "Guerrero online")
-        portrait = self.fighter_portraits.get("hayato")
+        fighter = online_fighter.get("fighter_name", online_fighter.get("clan_name", "Guerrero online"))
+        portrait = self._portrait_for_profile(online_fighter)
         status_text = "Conectado" if self.net and self.net.state.connected else "Sin conexion"
         status_color = GREEN if self.net and self.net.state.connected else RED
 
@@ -107,7 +108,7 @@ class LobbyScene(BaseScene):
         if players:
             for index, player in enumerate(players[:2]):
                 y = 244 + index * 98
-                player_portrait = self.fighter_portraits.get("hayato")
+                player_portrait = self._portrait_for_profile(player)
                 draw_portrait_badge(surface, pygame.Rect(768, y, 74, 98), player_portrait, accent=(80, 180, 95))
                 draw_chip(surface, pygame.Rect(856, y + 12, 112, 28), "LISTO", accent=(80, 180, 95))
                 name = self.small.render(player.get("username", "player").upper(), True, GOLD)

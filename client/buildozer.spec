@@ -11,7 +11,7 @@ requirements = python3,pygame-ce,requests,python-socketio,websocket-client
 orientation = landscape
 fullscreen = 1
 android.permissions = INTERNET,WAKE_LOCK,VIBRATE
-android.api = 35
+android.api = 34
 android.minapi = 24
 android.ndk_api = 24
 android.accept_sdk_license = True
@@ -20,7 +20,6 @@ android.wakelock = True
 android.enable_androidx = True
 android.copy_libs = 1
 android.logcat_filters = *:S python:D SDL:D
-p4a.branch = develop
 p4a.bootstrap = sdl2
 p4a.local_recipes = ./p4a-recipes
 

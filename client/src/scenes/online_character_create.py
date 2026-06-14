@@ -3,9 +3,10 @@ import pygame
 from src.core.base_scene import BaseScene
 from src.core.constants import GOLD, GREEN, LIGHT
 from src.ui.button import Button
+from src.ui.health_bar import draw_portrait_badge
 from src.ui.menu_theme import draw_backdrop, draw_chip, draw_panel, draw_selection_frame, get_font
 from src.ui.text_input import TextInput
-from src.utils.online_fighter_factory import build_online_fighter, load_online_catalog
+from src.utils.online_fighter_factory import build_online_fighter, get_online_clan_preset, load_online_catalog
 
 
 class OnlineCharacterCreateScene(BaseScene):
@@ -18,6 +19,13 @@ class OnlineCharacterCreateScene(BaseScene):
         self.selected_clan = "cuervo_negro"
         self.selected_weapon = "katana"
         self.selected_color = self.COLORS[0]
+        self.clan_portraits = {
+            clan["id"]: self.game.assets.load_image(
+                get_online_clan_preset(self.game.client_dir, clan["id"]).get("portrait", ""),
+                trim_alpha=True,
+            )
+            for clan in self.clans
+        }
         self.name_input = TextInput((92, 178, 370, 46), "NOMBRE DEL GUERRERO", max_length=24)
         self.clan_buttons = [Button((82, 284 + index * 66, 410, 52), clan["name"], font_size=18) for index, clan in enumerate(self.clans)]
         self.weapon_buttons = [Button((554 + (index % 2) * 300, 190 + (index // 2) * 74, 270, 54), weapon["name"], font_size=20) for index, weapon in enumerate(self.weapons)]
@@ -30,7 +38,8 @@ class OnlineCharacterCreateScene(BaseScene):
         self.name_input.text = profile.get("username") or account.get("username") or self.game.auth.session.get("username", "guerrero")
         self.selected_clan = profile.get("clan_id", "cuervo_negro")
         self.selected_weapon = profile.get("weapon_id", "katana")
-        self.selected_color = tuple(profile.get("color", self.COLORS[0]))
+        default_color = get_online_clan_preset(self.game.client_dir, self.selected_clan).get("default_color", self.COLORS[0])
+        self.selected_color = tuple(profile.get("color", default_color))
 
     def _continue(self):
         fighter = build_online_fighter(
@@ -58,6 +67,7 @@ class OnlineCharacterCreateScene(BaseScene):
         for clan, button in zip(self.clans, self.clan_buttons):
             if button.rect.collidepoint(event.pos):
                 self.selected_clan = clan["id"]
+                self.selected_color = tuple(get_online_clan_preset(self.game.client_dir, clan["id"]).get("default_color", self.COLORS[0]))
                 return
         for weapon, button in zip(self.weapons, self.weapon_buttons):
             if button.rect.collidepoint(event.pos):
@@ -86,6 +96,13 @@ class OnlineCharacterCreateScene(BaseScene):
             pygame.draw.rect(surface, GOLD if color == self.selected_color else LIGHT, rect, 4 if color == self.selected_color else 1, border_radius=12)
         clan = next(item for item in self.clans if item["id"] == self.selected_clan)
         weapon = next(item for item in self.weapons if item["id"] == self.selected_weapon)
+        clan_preset = get_online_clan_preset(self.game.client_dir, self.selected_clan)
+        preview_name = clan_preset.get("fighter_name", clan["name"])
+        preview_portrait = self.clan_portraits.get(self.selected_clan)
+        if preview_portrait is not None:
+            draw_portrait_badge(surface, pygame.Rect(938, 188, 212, 298), preview_portrait, accent=tuple(clan.get("accent", [196, 160, 78])))
+        surface.blit(get_font("heading", 21, bold=True).render("AVATAR DEL CLAN", True, GOLD), (924, 150))
+        surface.blit(get_font("body", 20, bold=True).render(preview_name.upper(), True, LIGHT), (924, 500))
         draw_chip(surface, pygame.Rect(554, 574, 330, 30), clan["style"].upper(), accent=GREEN)
         description = get_font("tiny", 17).render(weapon["description"], True, LIGHT)
         surface.blit(description, (554, 620))

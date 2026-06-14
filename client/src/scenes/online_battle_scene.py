@@ -11,6 +11,7 @@ from src.entities.weapon import Weapon
 from src.core.input_manager import DESKTOP_HINT_TEXT
 from src.scenes.battle_scene import BattleScene
 from src.ui.health_bar import draw_bar, draw_portrait_badge
+from src.utils.online_fighter_factory import get_online_clan_preset
 
 
 class OnlineBattleScene(BattleScene):
@@ -108,11 +109,13 @@ class OnlineBattleScene(BattleScene):
     def _profile_to_meta(self, profile, socket_id):
         max_health = profile.get("max_health", 115)
         max_stamina = profile.get("max_stamina", 100)
+        clan_id = profile.get("clan_id", "cuervo_negro")
+        preset = get_online_clan_preset(self.game.client_dir, clan_id)
         return {
             "socketId": socket_id,
             "username": profile.get("username", "guerrero"),
             "arenaId": self.game.shared.get("selected_arena", "coliseo_de_acero"),
-            "clanId": profile.get("clan_id", "cuervo_negro"),
+            "clanId": clan_id,
             "clanName": profile.get("clan_name", "Clan"),
             "weaponId": profile.get("weapon_id", "katana"),
             "weaponName": profile.get("weapon_name", "Katana"),
@@ -123,14 +126,17 @@ class OnlineBattleScene(BattleScene):
             "attackPower": profile.get("attack_power", 18),
             "defense": profile.get("defense", 8),
             "range": profile.get("range", 72),
-            "spriteSheet": profile.get("sprite_sheet", "assets/fighters/hayato_sheet_v2.png"),
-            "portrait": profile.get("portrait", "assets/fighters/portraits/hayato_portrait.png"),
+            "fighterName": profile.get("fighter_name", preset.get("fighter_name", "Guerrero Online")),
+            "spriteSheet": profile.get("sprite_sheet", preset.get("sprite_sheet", "")),
+            "portrait": profile.get("portrait", preset.get("portrait", "")),
             "weapon": profile.get("weapon"),
             "health": max_health,
             "stamina": max_stamina,
         }
 
     def _fighter_data_from_meta(self, meta, fighter_id, weapon_map):
+        clan_id = meta.get("clanId", "cuervo_negro")
+        preset = get_online_clan_preset(self.game.client_dir, clan_id)
         weapon_id = meta.get("weaponId", "katana")
         weapon_source = meta.get("weapon") or weapon_map.get(weapon_id) or weapon_map["katana"]
         weapon_fields = Weapon.__dataclass_fields__
@@ -139,15 +145,15 @@ class OnlineBattleScene(BattleScene):
         weapon.setdefault("name", meta.get("weaponName", weapon_id.title()))
         fighter = {
             "id": fighter_id,
-            "name": meta.get("username", "Guerrero"),
+            "name": meta.get("fighterName") or meta.get("username", "Guerrero Online"),
             "max_health": int(meta.get("maxHealth", 115)),
             "max_stamina": int(meta.get("maxStamina", 100)),
             "speed": int(meta.get("speed", 220)),
             "attack_power": int(meta.get("attackPower", 18)),
             "defense": int(meta.get("defense", 8)),
             "weapon_id": weapon["id"],
-            "sprite_sheet": meta.get("spriteSheet", "assets/fighters/hayato_sheet_v2.png"),
-            "portrait": meta.get("portrait", "assets/fighters/portraits/hayato_portrait.png"),
+            "sprite_sheet": meta.get("spriteSheet") or preset.get("sprite_sheet", ""),
+            "portrait": meta.get("portrait") or preset.get("portrait", ""),
         }
         return fighter, weapon
 

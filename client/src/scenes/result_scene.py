@@ -6,6 +6,7 @@ import pygame
 from src.core.base_scene import BaseScene
 from src.ui.button import Button
 from src.ui.menu_theme import blit_contain, draw_backdrop, draw_footer, draw_panel, get_font, tone_for_result
+from src.utils.online_fighter_factory import get_online_clan_preset
 
 
 class ResultScene(BaseScene):
@@ -38,6 +39,16 @@ class ResultScene(BaseScene):
                 self.game.shared["result_detail"] = None
                 self.game.go("menu")
 
+    def _portrait_for_result(self):
+        if self.game.shared.get("match_mode") == "online":
+            profile = self.game.shared.get("online_fighter") or {}
+            portrait_path = profile.get("portrait")
+            if not portrait_path:
+                preset = get_online_clan_preset(self.game.client_dir, profile.get("clan_id", "cuervo_negro"))
+                portrait_path = preset.get("portrait", "")
+            return self.game.assets.load_image(portrait_path, trim_alpha=True) if portrait_path else None
+        return self.portraits.get(self.game.shared.get("selected_fighter", "kenji"))
+
     def draw(self, surface):
         draw_backdrop(surface, self.background, overlay_color=(6, 8, 12, 172))
         self.draw_music_toggle(surface)
@@ -47,7 +58,7 @@ class ResultScene(BaseScene):
         result = self.game.shared.get("result") or "resultado"
         title = result.replace("_", " ").upper()
         color = tone_for_result(result)
-        portrait = self.portraits.get(self.game.shared.get("selected_fighter", "kenji"))
+        portrait = self._portrait_for_result()
 
         if portrait is not None:
             art_rect = pygame.Rect(290, 182, 240, 322)

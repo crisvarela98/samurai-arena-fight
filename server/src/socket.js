@@ -1,3 +1,5 @@
+const fs = require("fs");
+const path = require("path");
 const { Server } = require("socket.io");
 const { createRoom, joinRoom, removePlayerFromRoom, markRoomFinished } = require("./services/room.service");
 const { saveMatchResult } = require("./services/match.service");
@@ -5,6 +7,24 @@ const { upsertRanking } = require("./services/ranking.service");
 const { verifyToken } = require("./middleware/auth.middleware");
 
 const roomState = new Map();
+const onlineCatalogPath = path.resolve(__dirname, "../../client/data/online/online_fighters.json");
+const defaultOnlinePreset = {
+  fighter_name: "Sombra del Cuervo",
+  sprite_sheet: "assets/fighters/story/ash_hunter_sheet.png",
+  portrait: "assets/fighters/portraits/story/ash_hunter_portrait.png",
+};
+
+function loadOnlinePresets() {
+  try {
+    const raw = fs.readFileSync(onlineCatalogPath, "utf-8");
+    const parsed = JSON.parse(raw);
+    return parsed.clan_presets || {};
+  } catch (_error) {
+    return {};
+  }
+}
+
+const onlineClanPresets = loadOnlinePresets();
 
 function roomSnapshot(roomCode) {
   return roomState.get(roomCode);
@@ -15,12 +35,19 @@ function clampNumber(value, minimum, maximum, fallback) {
   return Number.isFinite(numeric) ? Math.max(minimum, Math.min(maximum, numeric)) : fallback;
 }
 
+function onlineClanPreset(clanId) {
+  return onlineClanPresets[clanId] || onlineClanPresets.cuervo_negro || defaultOnlinePreset;
+}
+
 function sanitizeOnlineFighter(payload = {}, accountUsername = "player") {
   const fighter = payload.onlineFighter || {};
+  const clanId = String(fighter.clan_id || fighter.clanId || "cuervo_negro").slice(0, 40);
+  const preset = onlineClanPreset(clanId);
   const color = Array.isArray(fighter.color) ? fighter.color.slice(0, 3).map((value) => clampNumber(value, 0, 255, 120)) : [170, 48, 52];
   return {
     username: String(fighter.username || accountUsername).trim().slice(0, 24) || accountUsername,
-    clanId: String(fighter.clan_id || fighter.clanId || "cuervo_negro").slice(0, 40),
+    fighterName: String(preset.fighter_name || "Guerrero Online").slice(0, 40),
+    clanId,
     clanName: String(fighter.clan_name || fighter.clanName || "Clan desconocido").slice(0, 80),
     weaponId: String(fighter.weapon_id || fighter.weaponId || "katana").slice(0, 40),
     weaponName: String(fighter.weapon_name || fighter.weaponName || "Katana").slice(0, 80),
@@ -31,8 +58,8 @@ function sanitizeOnlineFighter(payload = {}, accountUsername = "player") {
     attackPower: clampNumber(fighter.attack_power || fighter.attackPower, 8, 32, 18),
     defense: clampNumber(fighter.defense, 1, 18, 8),
     range: clampNumber(fighter.range, 45, 110, 72),
-    spriteSheet: String(fighter.sprite_sheet || fighter.spriteSheet || "assets/fighters/hayato_sheet_v2.png"),
-    portrait: String(fighter.portrait || "assets/fighters/portraits/hayato_portrait.png"),
+    spriteSheet: String(preset.sprite_sheet || defaultOnlinePreset.sprite_sheet),
+    portrait: String(preset.portrait || defaultOnlinePreset.portrait),
     weapon: fighter.weapon || null,
   };
 }
@@ -43,6 +70,7 @@ function buildPlayer(socket, payload = {}) {
     socketId: socket.id,
     userId: socket.user?.sub || null,
     username: profile.username,
+    fighterName: profile.fighterName,
     platform: payload.platform || "pc",
     fighterId: "online_custom",
     arenaId: payload.arenaId || "coliseo_de_acero",
@@ -75,6 +103,7 @@ function playersPayload(room) {
     arenaId: player.arenaId,
     clanId: player.clanId,
     clanName: player.clanName,
+    fighterName: player.fighterName,
     weaponId: player.weaponId,
     weaponName: player.weaponName,
     color: player.color,

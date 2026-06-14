@@ -12,21 +12,23 @@ jobs:
   build-apk:
     runs-on: ubuntu-latest
     timeout-minutes: 120
+    env:
+      PYTHONUTF8: "1"
     defaults:
       run:
         working-directory: client
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.11"
 
       - name: Set up Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
@@ -34,9 +36,29 @@ jobs:
       - name: Install Linux dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y git zip unzip autoconf automake libtool pkg-config cmake libffi-dev libssl-dev zlib1g-dev libncurses-dev
+          sudo apt-get install -y \
+            autoconf \
+            automake \
+            build-essential \
+            ccache \
+            cmake \
+            gettext \
+            git \
+            libffi-dev \
+            libltdl-dev \
+            libncurses5-dev \
+            libncursesw5-dev \
+            libssl-dev \
+            libtinfo6 \
+            libtool \
+            openjdk-17-jdk \
+            patch \
+            pkg-config \
+            unzip \
+            zip \
+            zlib1g-dev
           python -m pip install --upgrade pip setuptools wheel
-          python -m pip install buildozer cython
+          python -m pip install "buildozer==1.5.0" "Cython==0.29.34"
 
       - name: Cache Buildozer downloads
         uses: actions/cache@v4
@@ -57,4 +79,15 @@ jobs:
           name: samurai-arena-fight-apk
           path: client/bin/*.apk
           if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload Buildozer logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: samurai-arena-fight-buildozer-logs
+          path: |
+            client/.buildozer/**/*.log
+            client/.buildozer/android/platform/build-*/dists/*/*.txt
+          if-no-files-found: ignore
           retention-days: 14
