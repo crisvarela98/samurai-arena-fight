@@ -278,19 +278,48 @@ npm run build
 
 ### Deploy web y APK WebView
 
-1. Subi el repo a GitHub.
-2. Deploya `web-client/` a `Vercel` o `Netlify`.
-3. Configura:
+#### Backend en Render
+
+- Root directory: `server`
+- Build command: `npm install`
+- Start command: `npm start`
+
+Variables:
 
 ```env
-VITE_API_BASE_URL=https://tu-backend.example.com
-VITE_SOCKET_URL=https://tu-backend.example.com
+MONGODB_URI=mongodb+srv://...
+CLIENT_URL=https://tu-frontend.vercel.app
+NODE_ENV=production
+JWT_SECRET=un_secreto_largo_y_privado
 ```
 
-4. En el backend configura `CLIENT_URL` con la URL publica del frontend.
-5. Copia la URL final del sitio web.
-6. Pegala en `WebIntoApp` o `WebsiteToAPK`.
-7. Elegi orientacion horizontal y genera el APK WebView.
+Rutas de chequeo:
+
+- `GET /`
+- `GET /health`
+
+#### Frontend en Vercel
+
+- Root directory: `web-client`
+- Build command: `npm run build`
+- Output directory: `dist`
+
+Variable:
+
+```env
+VITE_SERVER_URL=https://tu-backend.onrender.com
+```
+
+#### APK WebView
+
+1. Subi el repo a GitHub.
+2. Deploya `server/` en Render.
+3. Deploya `web-client/` en Vercel.
+4. En Render configura `CLIENT_URL` con la URL publica de Vercel.
+5. En Vercel configura `VITE_SERVER_URL` con la URL publica de Render.
+6. Copia la URL final del sitio web en Vercel.
+7. Pegala en `WebIntoApp` o `WebsiteToAPK`.
+8. Elegi orientacion horizontal y genera el APK WebView.
 
 Lee tambien `web-client/README.md`.
 

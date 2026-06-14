@@ -491,15 +491,13 @@ export class SamuraiArenaWebApp {
         <div class="online-grid">
           <div class="card">
             <h3>Conexión</h3>
-            <label>API base URL</label>
-            <input id="api-url" value="${this.settings.apiBaseUrl}" placeholder="https://api.tudominio.com" />
-            <label>Socket URL</label>
-            <input id="socket-url" value="${this.settings.socketUrl}" placeholder="https://api.tudominio.com" />
+            <label>Backend URL</label>
+            <input id="server-url" value="${this.settings.serverUrl || this.settings.apiBaseUrl || this.settings.socketUrl || ""}" placeholder="https://samurai-arena-fight.onrender.com" />
             <div class="form-actions">
               ${button("Guardar", "save-options")}
               ${button("Pantalla completa", "fullscreen")}
             </div>
-            <p class="helper">En producción, no uses localhost. Si dejás vacío, el cliente intenta usar el mismo origen.</p>
+            <p class="helper">En producción usá la URL HTTPS de Render. Si lo dejás vacío, el cliente intenta usar el mismo origen.</p>
           </div>
           <div class="card">
             <h3>Controles</h3>
@@ -520,8 +518,10 @@ export class SamuraiArenaWebApp {
     this.bindActions({
       back: () => this.go("menu"),
       "save-options": () => {
-        this.settings.apiBaseUrl = this.stage.querySelector("#api-url").value.trim();
-        this.settings.socketUrl = this.stage.querySelector("#socket-url").value.trim();
+        const serverUrl = this.stage.querySelector("#server-url").value.trim();
+        this.settings.serverUrl = serverUrl;
+        this.settings.apiBaseUrl = serverUrl;
+        this.settings.socketUrl = serverUrl;
         saveSettings(this.settings);
         this.runtimeConfig = resolveRuntimeConfig(this.settings);
         this.toast("Opciones guardadas.");

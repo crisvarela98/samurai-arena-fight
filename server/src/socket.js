@@ -1,6 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const { Server } = require("socket.io");
+const { socketCorsOptions } = require("./config/cors");
 const { createRoom, joinRoom, removePlayerFromRoom, markRoomFinished } = require("./services/room.service");
 const { saveMatchResult } = require("./services/match.service");
 const { upsertRanking } = require("./services/ranking.service");
@@ -128,10 +129,7 @@ function findRoomBySocketId(socketId) {
 
 function initSocket(server) {
   const io = new Server(server, {
-    cors: {
-      origin: process.env.CLIENT_URL || "*",
-      credentials: true,
-    },
+    cors: socketCorsOptions,
   });
 
   io.use((socket, next) => {

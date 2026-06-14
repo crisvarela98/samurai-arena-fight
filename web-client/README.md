@@ -28,8 +28,7 @@ El script sincroniza automáticamente:
 Copiá `.env.example` a `.env` si querés fijar URLs:
 
 ```bash
-VITE_API_BASE_URL=https://tu-backend.example.com
-VITE_SOCKET_URL=https://tu-backend.example.com
+VITE_SERVER_URL=https://tu-backend.onrender.com
 ```
 
 También podés editar `public/runtime-config.js` si necesitás una configuración runtime sin rebuild.
@@ -42,24 +41,47 @@ npm run build
 
 ## Deploy
 
-### Vercel o Netlify
+### Backend en Render
 
-1. Subí este repo a GitHub.
-2. En Vercel o Netlify, usá `web-client/` como root del frontend.
-3. Build command: `npm run build`
-4. Output directory: `dist`
-5. Definí:
-   - `VITE_API_BASE_URL`
-   - `VITE_SOCKET_URL`
+- Root directory: `server`
+- Build command: `npm install`
+- Start command: `npm start`
+
+Variables:
+
+```env
+MONGODB_URI=mongodb+srv://...
+CLIENT_URL=https://tu-frontend.vercel.app
+NODE_ENV=production
+JWT_SECRET=un_secreto_largo
+JWT_EXPIRES_IN=7d
+```
+
+Rutas útiles:
+
+- `GET /`
+- `GET /health`
+
+### Frontend en Vercel
+
+- Root directory: `web-client`
+- Build command: `npm run build`
+- Output directory: `dist`
+
+Variable:
+
+```env
+VITE_SERVER_URL=https://tu-backend.onrender.com
+```
 
 ## Convertir a APK con WebIntoApp / WebsiteToAPK
 
-1. Deployá `web-client` a Vercel o Netlify.
-2. Copiá la URL pública final.
-3. Abrí WebIntoApp o WebsiteToAPK.
-4. Pegá esa URL.
-5. Elegí orientación horizontal.
-6. Activá pantalla completa / fullscreen si la plataforma lo permite.
+1. Deployá `web-client` a Vercel.
+2. Confirmá que el frontend apunte a `VITE_SERVER_URL`.
+3. Copiá la URL pública final de Vercel.
+4. Abrí WebIntoApp o WebsiteToAPK.
+5. Pegá esa URL.
+6. Elegí orientación horizontal.
 7. Generá el APK WebView.
 
 ## Backend requerido
@@ -67,6 +89,7 @@ npm run build
 El backend Node actual debe quedar desplegado aparte con:
 
 - `CLIENT_URL` = URL pública del frontend web
+- `NODE_ENV=production`
 - `JWT_SECRET`
 - `MONGODB_URI`
 
