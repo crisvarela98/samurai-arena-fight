@@ -1,0 +1,19 @@
+{
+  "name": "samurai-arena-fight-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "predev": "node scripts/sync-game-data.mjs",
+    "dev": "vite --host 0.0.0.0",
+    "prebuild": "node scripts/sync-game-data.mjs",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0"
+  },
+  "dependencies": {
+    "socket.io-client": "^4.8.1"
+  },
+  "devDependencies": {
+    "vite": "^5.4.10"
+  }
+}

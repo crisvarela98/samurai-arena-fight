@@ -243,6 +243,57 @@ El workflow usa Ubuntu, Java 17, Buildozer, python-for-android SDL2 y `actions/u
 
 La receta local de `pygame-ce` existe porque Pygame no dispone de una receta oficial estable integrada en la rama actual de python-for-android. Debe validarse el APK generado en un dispositivo real antes de distribuirlo.
 
+## Cliente web recomendado
+
+Ademas del cliente `Python + Pygame`, el repositorio ahora incluye `web-client/`, pensado para:
+
+- jugar desde navegador movil;
+- mantener el backend actual `Node.js + Express + Socket.IO + MongoDB`;
+- desplegar facilmente en `Vercel` o `Netlify`;
+- convertir luego la URL web en APK usando `WebIntoApp` o `WebsiteToAPK`.
+
+### Ejecutar `web-client`
+
+```bash
+cd web-client
+npm install
+npm run dev
+```
+
+El frontend:
+
+- usa `HTML`, `CSS`, `JavaScript` y `Canvas 2D`;
+- es `mobile-first`;
+- esta preparado para `landscape`;
+- muestra controles tactiles en pantalla;
+- usa `Socket.IO client` para online;
+- no borra ni reemplaza `client/` ni `server/`.
+
+### Build web
+
+```bash
+cd web-client
+npm run build
+```
+
+### Deploy web y APK WebView
+
+1. Subi el repo a GitHub.
+2. Deploya `web-client/` a `Vercel` o `Netlify`.
+3. Configura:
+
+```env
+VITE_API_BASE_URL=https://tu-backend.example.com
+VITE_SOCKET_URL=https://tu-backend.example.com
+```
+
+4. En el backend configura `CLIENT_URL` con la URL publica del frontend.
+5. Copia la URL final del sitio web.
+6. Pegala en `WebIntoApp` o `WebsiteToAPK`.
+7. Elegi orientacion horizontal y genera el APK WebView.
+
+Lee tambien `web-client/README.md`.
+
 ## Controles
 
 PC:
