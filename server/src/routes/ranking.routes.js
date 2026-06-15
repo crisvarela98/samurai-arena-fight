@@ -1,11 +1,14 @@
 const router = require("express").Router();
-const Ranking = require("../models/Ranking");
 const { authMiddleware } = require("../middleware/auth.middleware");
-const { databaseReady } = require("../services/user.service");
+const { getClanRanking, getGeneralRanking } = require("../services/ranking.service");
 
 router.get("/", authMiddleware, async (_req, res) => {
-  if (!databaseReady()) return res.json([]);
-  const ranking = await Ranking.find().sort({ points: -1, wins: -1 }).limit(20);
+  const ranking = await getGeneralRanking(20);
+  res.json(ranking);
+});
+
+router.get("/clans", authMiddleware, async (_req, res) => {
+  const ranking = await getClanRanking(20);
   res.json(ranking);
 });
 

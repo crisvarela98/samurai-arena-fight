@@ -16,8 +16,10 @@ function buildClans(onlineConfig) {
     id,
     name: value.fighter_name,
     portrait: assetUrl(value.portrait),
+    portraitUrl: assetUrl(value.portrait),
     color: value.default_color || [170, 48, 52],
     sprite_sheet: assetUrl(value.sprite_sheet),
+    spriteUrl: assetUrl(value.sprite_sheet),
   }));
 }
 
@@ -42,22 +44,32 @@ export async function loadGameData() {
     loadJson("/game/data/online/online_weapons.json"),
   ]);
 
+  const mappedFighters = fighters.map((fighter) => ({
+    ...fighter,
+    portraitUrl: assetUrl(fighter.portrait),
+    spriteUrl: assetUrl(fighter.sprite_sheet),
+  }));
+  const mappedEnemies = enemies.map((enemy) => ({
+    ...enemy,
+    portraitUrl: assetUrl(enemy.portrait),
+    spriteUrl: assetUrl(enemy.sprite_sheet),
+  }));
   const missionsById = Object.fromEntries(missions.map((item) => [item.id, item]));
-  const enemiesById = Object.fromEntries(enemies.map((item) => [item.id, item]));
+  const enemiesById = Object.fromEntries(mappedEnemies.map((item) => [item.id, item]));
   const arenasById = Object.fromEntries(arenas.map((item) => [item.id, item]));
-  const fightersById = Object.fromEntries(fighters.map((item) => [item.id, item]));
+  const fightersById = Object.fromEntries(mappedFighters.map((item) => [item.id, item]));
   const cutscenesById = Object.fromEntries(cutscenes.map((item) => [item.id, item]));
   const weaponsById = Object.fromEntries(onlineWeapons.map((item) => [item.id, item]));
 
   return {
-    fighters,
+    fighters: mappedFighters,
     arenas: arenas.map((arena) => ({
       ...arena,
       backgroundUrl: assetUrl(arena.background),
       floorUrl: assetUrl(arena.floor),
     })),
     missions,
-    enemies,
+    enemies: mappedEnemies,
     cutscenes,
     storyFighter: {
       ...storyFighter,

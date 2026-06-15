@@ -180,6 +180,11 @@ class NetworkClient:
         response.raise_for_status()
         return response.json()
 
+    def fetch_clan_ranking(self, timeout=3.0):
+        response = requests.get(self.rest_url("/api/ranking/clans"), headers=self._auth_headers(), timeout=timeout)
+        response.raise_for_status()
+        return response.json()
+
     def connect(self):
         if not self.auth_token:
             raise RuntimeError("Inicia sesion antes de entrar al modo online")

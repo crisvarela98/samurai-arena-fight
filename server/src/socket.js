@@ -11,8 +11,8 @@ const roomState = new Map();
 const onlineCatalogPath = path.resolve(__dirname, "../../client/data/online/online_fighters.json");
 const defaultOnlinePreset = {
   fighter_name: "Sombra del Cuervo",
-  sprite_sheet: "assets/fighters/story/ash_hunter_sheet.png",
-  portrait: "assets/fighters/portraits/story/ash_hunter_portrait.png",
+  sprite_sheet: "assets/fighters/online/cuervo_negro_sheet.png",
+  portrait: "assets/fighters/portraits/online/cuervo_negro_portrait.png",
 };
 
 function loadOnlinePresets() {

@@ -1,4 +1,5 @@
-import { resolveRuntimeConfig } from "./config.js";
+﻿import { resolveRuntimeConfig } from "./config.js";
+import { WebAudioManager } from "./audio.js";
 import { ApiClient, RealtimeClient } from "./net.js";
 import {
   buildCompletedMissionProgress,
@@ -33,11 +34,13 @@ export class SamuraiArenaWebApp {
     this.runtimeConfig = resolveRuntimeConfig(this.settings);
     this.api = new ApiClient(() => this.runtimeConfig, () => this.auth.token);
     this.realtime = new RealtimeClient(() => this.runtimeConfig, () => this.auth.token);
+    this.audio = new WebAudioManager(this.settings, data.assetUrl);
     this.scene = "splash";
     this.sceneParams = {};
     this.battle = null;
     this.roomSnapshot = null;
-    this.onlineLists = { rooms: [], ranking: [] };
+    this.onlineLists = { rooms: [], ranking: [], clanRanking: [] };
+    this.renderVersion = 0;
     this.bindRealtime();
   }
 
@@ -48,7 +51,7 @@ export class SamuraiArenaWebApp {
     });
     this.realtime.on("waiting_for_player", (payload) => {
       this.roomSnapshot = payload;
-      this.renderLobby(payload, "Compartí el código y esperá.");
+      this.renderLobby(payload, "Comparti el codigo y espera.");
     });
     this.realtime.on("room_joined", (payload) => {
       this.roomSnapshot = payload;
@@ -65,6 +68,7 @@ export class SamuraiArenaWebApp {
 
   async init() {
     this.renderFrame();
+    this.audio.setScene("splash");
     if (this.auth.token) {
       try {
         const payload = await this.api.me();
@@ -78,6 +82,28 @@ export class SamuraiArenaWebApp {
     setTimeout(() => this.go("menu"), 2000);
   }
 
+  themeUrl(fileName) {
+    return this.data.assetUrl(`assets/ui/${fileName}`);
+  }
+
+  renderSoundToggle(size = "") {
+    return `<button type="button" class="sound-toggle ${size}" data-action="toggle-sound"><span class="sound-indicator ${this.settings.musicMuted ? "off" : "on"}"></span>${this.settings.musicMuted ? "AUDIO OFF" : "AUDIO ON"}</button>`;
+  }
+
+  syncSettings() {
+    saveSettings(this.settings);
+    this.runtimeConfig = resolveRuntimeConfig(this.settings);
+    this.audio.setSettings(this.settings);
+  }
+
+  toggleSound() {
+    const next = this.audio.toggleAll();
+    this.settings.musicMuted = next.musicMuted;
+    this.settings.fxMuted = next.fxMuted;
+    this.syncSettings();
+    this.renderFrame();
+  }
+
   go(scene, params = {}) {
     if (this.battle) {
       this.battle.destroy();
@@ -85,19 +111,16 @@ export class SamuraiArenaWebApp {
     }
     this.scene = scene;
     this.sceneParams = params;
+    this.audio.setScene(scene);
     this.renderFrame();
   }
 
   renderFrame() {
+    this.renderVersion += 1;
     this.root.innerHTML = `<div class="shell"><div class="app-stage"></div></div>`;
     this.stage = this.root.querySelector(".app-stage");
     if (this.scene === "splash") {
-      this.stage.innerHTML = `
-        <section class="splash-screen">
-          <div class="logo-slot">TU LOGO / STUDIO</div>
-          <div class="logo-slot game">SAMURAI ARENA FIGHT</div>
-        </section>
-      `;
+      this.renderSplash();
       return;
     }
     if (this.scene === "battle") {
@@ -105,6 +128,17 @@ export class SamuraiArenaWebApp {
       return;
     }
     this.renderScene();
+  }
+
+  renderSplash() {
+    this.stage.innerHTML = `
+      <section class="splash-screen splash-dark">
+        <div class="splash-card">
+          <div class="logo-slot">TU LOGO / STUDIO</div>
+          <div class="logo-slot game">SAMURAI ARENA FIGHT</div>
+        </div>
+      </section>
+    `;
   }
 
   renderScene() {
@@ -132,30 +166,52 @@ export class SamuraiArenaWebApp {
   renderMenu() {
     const canOnline = this.progress.first_time_completed || this.progress.unlocked_modes.includes("Online");
     this.stage.innerHTML = `
-      <section class="scene menu-scene">
-        <div class="hero-panel">
-          <span class="eyebrow">WEB CLIENT · CANVAS 2D · MOBILE FIRST</span>
-          <h1>Samurai Arena Fight</h1>
-          <p>Versión web lista para Vercel, Netlify y empaquetado en WebView Android.</p>
-          <div class="menu-actions">
-            ${button("Juego rápido", "quick")}
+      <section class="scene menu-scene scene-backdrop" style="--scene-image: url('${this.themeUrl("menu_main_bg_v2.png")}')">
+        <div class="scene-overlay scene-overlay-right"></div>
+        <div class="scene-topbar">
+          <div class="topbar-copy">
+            <span class="eyebrow">ACTO 1 - EL DESPERTAR</span>
+            <span class="topbar-note">Menu clasico, samurai destacado y acceso rapido a la historia</span>
+          </div>
+          <div class="topbar-actions">
+            ${this.renderSoundToggle()}
+          </div>
+        </div>
+
+        <div class="menu-stage-copy">
+          <span class="eyebrow">SAMURAI ARENA FIGHT</span>
+          <h1>Kenji vuelve a la arena</h1>
+          <p>Vuelve el estilo vintage del menu. El panel derecho concentra las opciones y el samurai vuelve a dominar el resto de la pantalla.</p>
+          <div class="menu-badges">
+            <span class="pill accent">ANDROID</span>
+            <span class="pill">LANDSCAPE</span>
+            <span class="pill">${this.auth.user ? `SESION ${this.auth.user.username}` : "SIN SESION"}</span>
+          </div>
+        </div>
+
+        <div class="vintage-menu-panel">
+          <span class="eyebrow">MENU PRINCIPAL</span>
+          <h2>Elegi tu camino</h2>
+          <div class="menu-actions vertical">
+            ${button("Juego rapido", "quick")}
             ${button("Modo historia", "story")}
             ${button("Online", "online", canOnline ? "" : "disabled")}
             ${button("Opciones", "options")}
           </div>
           <div class="status-row">
             <span class="pill">API ${this.runtimeConfig.apiBaseUrl}</span>
-            <span class="pill">${this.auth.user ? `Sesión ${this.auth.user.username}` : "Sin sesión online"}</span>
+            <span class="pill">Historia -> primera pelea</span>
           </div>
         </div>
       </section>
     `;
     this.bindActions({
+      "toggle-sound": () => this.toggleSound(),
       quick: () => this.go("quick"),
       story: () => this.go("story"),
       online: () => {
         if (!canOnline) {
-          this.toast("Terminá la misión 1 para desbloquear Online.");
+          this.toast("Termina la mision 1 para desbloquear Online.");
           return;
         }
         this.go("online");
@@ -171,10 +227,14 @@ export class SamuraiArenaWebApp {
     const selectedEnemy = this.sceneParams.enemyId || fighters[1].id;
     const selectedArena = this.sceneParams.arenaId || arenas[0].id;
     this.stage.innerHTML = `
-      <section class="scene card-scene">
+      <section class="scene card-scene scene-backdrop" style="--scene-image: url('${this.themeUrl("menu_armory_bg.png")}')">
+        <div class="scene-overlay"></div>
         <div class="scene-header">
-          <h2>Juego rápido</h2>
-          ${button("Volver", "back", "ghost")}
+          <h2>Juego rapido</h2>
+          <div class="inline-actions">
+            ${this.renderSoundToggle()}
+            ${button("Volver", "back", "ghost")}
+          </div>
         </div>
         <div class="selection-grid">
           <div class="card">
@@ -229,13 +289,14 @@ export class SamuraiArenaWebApp {
       </section>
     `;
     this.bindActions({
+      "toggle-sound": () => this.toggleSound(),
       back: () => this.go("menu"),
       "pick-fighter": (event) =>
-        this.go("quick", { ...this.sceneParams, fighterId: event.currentTarget.dataset.value, enemyId: selectedEnemy, arenaId: selectedArena }),
+        this.go("quick", { fighterId: event.currentTarget.dataset.value, enemyId: selectedEnemy, arenaId: selectedArena }),
       "pick-enemy": (event) =>
-        this.go("quick", { ...this.sceneParams, fighterId: selectedFighter, enemyId: event.currentTarget.dataset.value, arenaId: selectedArena }),
+        this.go("quick", { fighterId: selectedFighter, enemyId: event.currentTarget.dataset.value, arenaId: selectedArena }),
       "pick-arena": (event) =>
-        this.go("quick", { ...this.sceneParams, fighterId: selectedFighter, enemyId: selectedEnemy, arenaId: event.currentTarget.dataset.value }),
+        this.go("quick", { fighterId: selectedFighter, enemyId: selectedEnemy, arenaId: event.currentTarget.dataset.value }),
       "start-quick": () =>
         this.go("battle", {
           mode: "quick",
@@ -249,18 +310,25 @@ export class SamuraiArenaWebApp {
   renderStoryMenu() {
     const unlockedMission = Math.max(1, Number(this.progress.story_mission || 0) + 1);
     this.stage.innerHTML = `
-      <section class="scene card-scene">
+      <section class="scene card-scene scene-backdrop" style="--scene-image: url('${this.themeUrl("menu_armory_bg.png")}')">
+        <div class="scene-overlay"></div>
         <div class="scene-header">
           <h2>Modo historia</h2>
-          ${button("Volver", "back", "ghost")}
+          <div class="inline-actions">
+            ${this.renderSoundToggle()}
+            ${button("Volver", "back", "ghost")}
+          </div>
         </div>
         <div class="story-banner">
           <div>
-            <span class="eyebrow">ACTO 1 · EL DESPERTAR</span>
+            <span class="eyebrow">ACTO 1 - EL DESPERTAR</span>
             <h3>Entre los muertos</h3>
-            <p>Primer FTUE narrativo en máximo 2 minutos. Kenji despierta, pelea y desbloquea el menú completo.</p>
+            <p>FTUE narrativo de 2 minutos. Si queres ir directo al combate, ya tenes el boton para entrar a la primera pelea.</p>
           </div>
-          ${button("Continuar", "continue-story")}
+          <div class="hero-actions compact">
+            ${button("Jugar FTUE", "continue-story")}
+            ${button("Ir a la pelea", "jump-first-fight", "ghost")}
+          </div>
         </div>
         <div class="mission-grid">
           ${this.data.missions
@@ -270,7 +338,7 @@ export class SamuraiArenaWebApp {
                 <article class="mission-card ${locked ? "locked" : ""}">
                   <img src="${this.data.arenasById[mission.arena_id].backgroundUrl}" alt="${mission.title}" />
                   <div class="mission-copy">
-                    <span class="eyebrow">MISIÓN ${mission.number}</span>
+                    <span class="eyebrow">MISION ${mission.number}</span>
                     <h3>${mission.title}</h3>
                     <p>${mission.summary}</p>
                     <div class="pill-row">
@@ -286,26 +354,35 @@ export class SamuraiArenaWebApp {
         </div>
       </section>
     `;
-    this.stage.querySelectorAll('[data-action="play-mission"]').forEach((buttonNode, index) => {
-      if (buttonNode.classList.contains("disabled")) return;
-      buttonNode.addEventListener("click", () => this.startStoryMission(this.data.missions[index]));
+    this.stage.querySelectorAll('[data-action="play-mission"]').forEach((node, index) => {
+      if (node.classList.contains("disabled")) return;
+      node.addEventListener("click", () => this.startStoryMission(this.data.missions[index]));
     });
     this.bindActions({
+      "toggle-sound": () => this.toggleSound(),
       back: () => this.go("menu"),
       "continue-story": () => this.startStoryMission(this.data.missions[Math.max(0, unlockedMission - 1)]),
+      "jump-first-fight": () => this.launchFirstFight(),
     });
   }
 
   async renderOnlineMenu() {
+    const renderId = this.renderVersion;
+    const background = this.themeUrl("menu_online_bg.png");
+
     if (!this.auth.token) {
       this.stage.innerHTML = `
-        <section class="scene auth-scene">
+        <section class="scene auth-scene scene-backdrop" style="--scene-image: url('${background}')">
+          <div class="scene-overlay"></div>
           <div class="auth-card">
-            <h2>Modo online</h2>
-            <p>Necesitás una cuenta para crear o unirte a una sala Socket.IO.</p>
+            <div class="scene-header tight">
+              <h2>Modo online</h2>
+              ${this.renderSoundToggle()}
+            </div>
+            <p>Necesitas una cuenta para crear o unirte a una sala Socket.IO.</p>
             <form id="login-form" class="stack-form">
               <input name="identity" placeholder="Usuario o email" value="${this.onlineProfile.username || ""}" />
-              <input name="password" type="password" placeholder="Contraseña" />
+              <input name="password" type="password" placeholder="Contrasena" />
               <div class="form-actions">
                 ${button("Entrar", "login")}
                 ${button("Volver", "back", "ghost")}
@@ -315,7 +392,7 @@ export class SamuraiArenaWebApp {
             <form id="register-form" class="stack-form">
               <input name="username" placeholder="Usuario" value="${this.onlineProfile.username || ""}" />
               <input name="email" type="email" placeholder="Email" />
-              <input name="password" type="password" placeholder="Contraseña" />
+              <input name="password" type="password" placeholder="Contrasena" />
               ${button("Crear cuenta", "register")}
             </form>
           </div>
@@ -351,25 +428,32 @@ export class SamuraiArenaWebApp {
           this.toast(error.message);
         }
       });
-      this.bindActions({ back: () => this.go("menu") });
+      this.bindActions({
+        "toggle-sound": () => this.toggleSound(),
+        back: () => this.go("menu"),
+      });
       return;
     }
 
     try {
-      const [rooms, ranking] = await Promise.all([this.api.rooms(), this.api.ranking()]);
-      this.onlineLists = { rooms, ranking };
+      const [rooms, ranking, clanRanking] = await Promise.all([this.api.rooms(), this.api.ranking(), this.api.clanRanking()]);
+      if (renderId !== this.renderVersion || this.scene !== "online") return;
+      this.onlineLists = { rooms, ranking, clanRanking };
     } catch (_error) {
-      this.onlineLists = { rooms: [], ranking: [] };
+      this.onlineLists = { rooms: [], ranking: [], clanRanking: [] };
     }
 
     const clans = this.data.clans;
     const weapons = this.data.onlineWeapons;
+    const clanById = Object.fromEntries(clans.map((clan) => [clan.id, clan]));
     this.stage.innerHTML = `
-      <section class="scene online-scene">
+      <section class="scene online-scene scene-backdrop" style="--scene-image: url('${background}')">
+        <div class="scene-overlay"></div>
         <div class="scene-header">
           <h2>Online</h2>
           <div class="inline-actions">
-            ${button("Cerrar sesión", "logout", "ghost")}
+            ${this.renderSoundToggle()}
+            ${button("Cerrar sesion", "logout", "ghost")}
             ${button("Volver", "back", "ghost")}
           </div>
         </div>
@@ -403,7 +487,7 @@ export class SamuraiArenaWebApp {
                 )
                 .join("")}
             </div>
-            <label>Código sala</label>
+            <label>Codigo sala</label>
             <input id="room-code" placeholder="ABCD12" />
             <div class="form-actions">
               ${button("Crear sala", "create-room")}
@@ -413,17 +497,30 @@ export class SamuraiArenaWebApp {
           <div class="card">
             <h3>Salas</h3>
             <div class="list-panel">
-              ${this.onlineLists.rooms.length ? this.onlineLists.rooms.map((room) => `<div class="list-row">${room.roomCode} · ${room.status}</div>`).join("") : "<div class='list-row'>No hay salas públicas visibles.</div>"}
+              ${this.onlineLists.rooms.length ? this.onlineLists.rooms.map((room) => `<div class="list-row">${room.roomCode} - ${room.status}</div>`).join("") : "<div class='list-row'>No hay salas publicas visibles.</div>"}
             </div>
-            <h3>Ranking</h3>
+            <h3>Ranking general</h3>
             <div class="list-panel">
-              ${this.onlineLists.ranking.length ? this.onlineLists.ranking.map((row) => `<div class="list-row">${row.username} · ${row.points} pts</div>`).join("") : "<div class='list-row'>Sin ranking disponible.</div>"}
+              ${this.onlineLists.ranking.length ? this.onlineLists.ranking.map((row, index) => {
+                const clan = clanById[row.clan];
+                const clanName = clan?.name || row.clan || "Clan";
+                return `<div class="list-row">#${index + 1} ${row.username} - ${row.points} pts - ${clanName}</div>`;
+              }).join("") : "<div class='list-row'>Sin ranking general disponible.</div>"}
+            </div>
+            <h3>Ranking por clan</h3>
+            <div class="list-panel">
+              ${this.onlineLists.clanRanking.length ? this.onlineLists.clanRanking.map((row, index) => {
+                const clan = clanById[row.clan];
+                const clanName = clan?.name || row.clan || "Clan";
+                return `<div class="list-row">#${index + 1} ${clanName} - ${row.points} pts - ${row.wins}V/${row.losses}D - ${row.members} jugadores</div>`;
+              }).join("") : "<div class='list-row'>Sin ranking por clan disponible.</div>"}
             </div>
           </div>
         </div>
       </section>
     `;
     this.bindActions({
+      "toggle-sound": () => this.toggleSound(),
       back: () => this.go("menu"),
       logout: () => {
         clearAuth();
@@ -450,9 +547,13 @@ export class SamuraiArenaWebApp {
 
   renderLobby(snapshot, statusText) {
     this.stage.innerHTML = `
-      <section class="scene auth-scene">
+      <section class="scene auth-scene scene-backdrop" style="--scene-image: url('${this.themeUrl("menu_online_bg.png")}')">
+        <div class="scene-overlay"></div>
         <div class="auth-card">
-          <h2>Sala ${snapshot.roomCode}</h2>
+          <div class="scene-header tight">
+            <h2>Sala ${snapshot.roomCode}</h2>
+            ${this.renderSoundToggle()}
+          </div>
           <p>${statusText}</p>
           <div class="list-panel">
             ${(snapshot.players || [])
@@ -473,6 +574,7 @@ export class SamuraiArenaWebApp {
       </section>
     `;
     this.bindActions({
+      "toggle-sound": () => this.toggleSound(),
       "leave-room": () => {
         this.realtime.leaveRoom();
         this.realtime.disconnect();
@@ -483,47 +585,76 @@ export class SamuraiArenaWebApp {
 
   renderOptions() {
     this.stage.innerHTML = `
-      <section class="scene card-scene">
+      <section class="scene card-scene scene-backdrop" style="--scene-image: url('${this.themeUrl("menu_armory_bg.png")}')">
+        <div class="scene-overlay"></div>
         <div class="scene-header">
           <h2>Opciones</h2>
-          ${button("Volver", "back", "ghost")}
+          <div class="inline-actions">
+            ${this.renderSoundToggle()}
+            ${button("Volver", "back", "ghost")}
+          </div>
         </div>
         <div class="online-grid">
           <div class="card">
-            <h3>Conexión</h3>
+            <h3>Audio y conexion</h3>
+            <div class="audio-panel">
+              <div>
+                <span class="eyebrow">SONIDO</span>
+                <p>${this.settings.musicMuted ? "El audio esta apagado." : "La musica y los efectos estan activos."}</p>
+              </div>
+              ${this.renderSoundToggle("large")}
+            </div>
             <label>Backend URL</label>
             <input id="server-url" value="${this.settings.serverUrl || this.settings.apiBaseUrl || this.settings.socketUrl || ""}" placeholder="https://samurai-arena-fight.onrender.com" />
             <div class="form-actions">
               ${button("Guardar", "save-options")}
               ${button("Pantalla completa", "fullscreen")}
             </div>
-            <p class="helper">En producción usá la URL HTTPS de Render. Si lo dejás vacío, el cliente intenta usar el mismo origen.</p>
+            <p class="helper">En produccion usa la URL HTTPS de Render. Si lo dejas vacio, el cliente intenta usar el mismo origen.</p>
           </div>
           <div class="card">
             <h3>Controles</h3>
-            <div class="list-panel">
-              <div class="list-row">Mover: A / D o botones ◀ ▶</div>
-              <div class="list-row">Saltar: W o ▲</div>
-              <div class="list-row">Agacharse: S o ▼</div>
-              <div class="list-row">Atacar: J o ATK</div>
-              <div class="list-row">Bloquear: I o BLK</div>
-              <div class="list-row">Dash / Esquivar: L o DASH</div>
-              <div class="list-row">Especial: K o SP</div>
-              <div class="list-row">Pausa: ESC o botón II</div>
+            <div class="control-columns">
+              <div class="control-card">
+                <span class="eyebrow">PC</span>
+                <div class="list-panel">
+                  <div class="list-row">Mover: A / D</div>
+                  <div class="list-row">Saltar: W</div>
+                  <div class="list-row">Agacharse: S</div>
+                  <div class="list-row">Golpe: J</div>
+                  <div class="list-row">Bloqueo: I</div>
+                  <div class="list-row">Dash: L</div>
+                  <div class="list-row">Especial: K</div>
+                  <div class="list-row">Pausa: ESC</div>
+                </div>
+              </div>
+              <div class="control-card">
+                <span class="eyebrow">ANDROID</span>
+                <div class="list-panel">
+                  <div class="list-row">Mover: IZQ / DER</div>
+                  <div class="list-row">Saltar: SALTO</div>
+                  <div class="list-row">Agacharse: ABAJO</div>
+                  <div class="list-row">Golpe: GOLPE</div>
+                  <div class="list-row">Bloqueo: BLOQ</div>
+                  <div class="list-row">Dash: DASH</div>
+                  <div class="list-row">Especial: ESPECIAL</div>
+                  <div class="list-row">Pausa: boton II</div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </section>
     `;
     this.bindActions({
+      "toggle-sound": () => this.toggleSound(),
       back: () => this.go("menu"),
       "save-options": () => {
         const serverUrl = this.stage.querySelector("#server-url").value.trim();
         this.settings.serverUrl = serverUrl;
         this.settings.apiBaseUrl = serverUrl;
         this.settings.socketUrl = serverUrl;
-        saveSettings(this.settings);
-        this.runtimeConfig = resolveRuntimeConfig(this.settings);
+        this.syncSettings();
         this.toast("Opciones guardadas.");
         this.go("options");
       },
@@ -536,7 +667,7 @@ export class SamuraiArenaWebApp {
             await screen.orientation.lock("landscape");
           }
         } catch (_error) {
-          this.toast("La pantalla completa depende del navegador o WebView.");
+          this.toast("La pantalla completa depende del navegador o del WebView.");
         }
       },
     });
@@ -557,6 +688,7 @@ export class SamuraiArenaWebApp {
         enemy,
         playerWeapon: this.data.weaponsById.katana,
         enemyWeapon: this.data.weaponsById.katana,
+        audio: this.audio,
         onExit: () => this.go("menu"),
         onRetry: () => this.go("battle", params),
         onMatchEnd: () => {},
@@ -564,6 +696,7 @@ export class SamuraiArenaWebApp {
       this.battle.mount();
       return;
     }
+
     if (params.mode === "story") {
       const mission = params.mission;
       const fightIndex = params.fightIndex || 0;
@@ -577,13 +710,15 @@ export class SamuraiArenaWebApp {
         enemy,
         playerWeapon: this.data.weaponsById.katana,
         enemyWeapon: this.data.weaponsById.katana,
-        storyHints: mission.number === 1
-          ? [
-              { text: "Movete con A/D o los botones laterales", duration: 2400, gap: 900 },
-              { text: "Atacá con J o ATK", duration: 2200, gap: 900 },
-              { text: "Bloqueá con I o BLK, y usá L o DASH para esquivar", duration: 2600, gap: 900 },
-            ]
-          : [],
+        audio: this.audio,
+        storyHints:
+          mission.number === 1
+            ? [
+                { text: "Movete con A/D o con IZQ y DER", duration: 2500, gap: 900 },
+                { text: "Usa SALTO y ABAJO para moverte mejor", duration: 2300, gap: 900 },
+                { text: "Golpea con GOLPE, bloquea con BLOQ y usa DASH para esquivar", duration: 3200, gap: 900 },
+              ]
+            : [],
         onExit: (playerWon) => this.finishStoryBattle(playerWon, mission, fightIndex),
         onRetry: () => this.go("battle", params),
         onMatchEnd: () => {},
@@ -591,6 +726,7 @@ export class SamuraiArenaWebApp {
       this.battle.mount();
       return;
     }
+
     if (params.mode === "online") {
       const localMeta = params.match.players.find((item) => item.socketId === this.realtime.state.socketId) || params.match.players[0];
       const enemyMeta = params.match.players.find((item) => item.socketId !== this.realtime.state.socketId) || params.match.players[1];
@@ -606,6 +742,8 @@ export class SamuraiArenaWebApp {
           id: localMeta.clanId,
           name: localMeta.username,
           portrait: this.data.assetUrl(localMeta.portrait),
+          portraitUrl: this.data.assetUrl(localMeta.portrait),
+          spriteUrl: this.data.assetUrl(localMeta.spriteSheet),
           maxHealth: localMeta.maxHealth,
           maxStamina: localMeta.maxStamina,
           attackPower: localMeta.attackPower,
@@ -615,6 +753,8 @@ export class SamuraiArenaWebApp {
           id: enemyMeta.clanId,
           name: enemyMeta.username,
           portrait: this.data.assetUrl(enemyMeta.portrait),
+          portraitUrl: this.data.assetUrl(enemyMeta.portrait),
+          spriteUrl: this.data.assetUrl(enemyMeta.spriteSheet),
           maxHealth: enemyMeta.maxHealth,
           maxStamina: enemyMeta.maxStamina,
           attackPower: enemyMeta.attackPower,
@@ -622,6 +762,7 @@ export class SamuraiArenaWebApp {
         playerWeapon,
         enemyWeapon,
         realtime: this.realtime,
+        audio: this.audio,
         currentRound: params.match.currentRound || 1,
         onlineSocketId: this.realtime.state.socketId,
         onExit: () => {
@@ -639,7 +780,7 @@ export class SamuraiArenaWebApp {
 
   async finishStoryBattle(playerWon, mission, fightIndex) {
     if (!playerWon) {
-      this.toast("Kenji cayó. Reintentá la misión.");
+      this.toast("Kenji cayo. Reintenta la mision.");
       this.go("story");
       return;
     }
@@ -687,6 +828,16 @@ export class SamuraiArenaWebApp {
     this.go("menu");
   }
 
+  launchFirstFight() {
+    const mission = this.data.missions[0];
+    this.go("battle", {
+      mode: "story",
+      mission,
+      arenaId: mission.arena_id,
+      fightIndex: 0,
+    });
+  }
+
   startStoryMission(mission) {
     const cutscene = this.data.cutscenesById[mission.intro_cutscene];
     if (cutscene) {
@@ -704,6 +855,7 @@ export class SamuraiArenaWebApp {
   }
 
   playCutscene(cutscene, onComplete) {
+    this.audio.setScene("cutscene");
     const panels = [...(cutscene.panels || [])];
     let index = 0;
     const renderPanel = () => {
@@ -713,10 +865,14 @@ export class SamuraiArenaWebApp {
         return;
       }
       this.stage.innerHTML = `
-        <section class="scene cutscene-scene">
+        <section class="scene cutscene-scene scene-backdrop" style="--scene-image: url('${this.themeUrl("menu_main_bg_v2.png")}')">
+          <div class="scene-overlay"></div>
           <img class="cutscene-image" src="${this.data.assetUrl(panel.image)}" alt="${panel.speaker}" />
           <div class="cutscene-panel">
-            <span class="eyebrow">${panel.speaker}</span>
+            <div class="scene-header tight">
+              <span class="eyebrow">${panel.speaker}</span>
+              ${this.renderSoundToggle()}
+            </div>
             <p>${panel.text}</p>
             <div class="form-actions">
               ${button(index + 1 >= panels.length ? "Seguir" : "Siguiente", "next-panel")}
@@ -726,6 +882,7 @@ export class SamuraiArenaWebApp {
         </section>
       `;
       this.bindActions({
+        "toggle-sound": () => this.toggleSound(),
         "next-panel": () => {
           index += 1;
           renderPanel();
@@ -783,7 +940,7 @@ export class SamuraiArenaWebApp {
   joinRoom() {
     const roomCode = this.stage.querySelector("#room-code")?.value?.trim().toUpperCase();
     if (!roomCode) {
-      this.toast("Ingresá un código de sala.");
+      this.toast("Ingresa un codigo de sala.");
       return;
     }
     try {
@@ -810,3 +967,5 @@ export class SamuraiArenaWebApp {
     setTimeout(() => toast.remove(), 2400);
   }
 }
+
+

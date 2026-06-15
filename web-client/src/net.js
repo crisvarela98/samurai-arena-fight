@@ -53,6 +53,10 @@ export class ApiClient {
     return this.request("/api/ranking");
   }
 
+  clanRanking() {
+    return this.request("/api/ranking/clans");
+  }
+
   updateProgress(storyProgress, profile) {
     return this.request("/api/users/me/progress", {
       method: "PUT",

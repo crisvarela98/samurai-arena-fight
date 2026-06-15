@@ -1,15 +1,16 @@
 const LOGICAL_WIDTH = 1280;
 const LOGICAL_HEIGHT = 720;
 const GROUND_Y = 560;
+const SPRITE_FRAME_COUNT = 7;
 const TOUCH_BUTTONS = [
-  { action: "left", label: "◀", group: "move" },
-  { action: "right", label: "▶", group: "move" },
-  { action: "up", label: "▲", group: "move" },
-  { action: "down", label: "▼", group: "move" },
-  { action: "attack", label: "ATK", group: "act primary" },
-  { action: "block", label: "BLK", group: "act" },
+  { action: "left", label: "IZQ", group: "move" },
+  { action: "right", label: "DER", group: "move" },
+  { action: "up", label: "SALTO", group: "move jump" },
+  { action: "down", label: "ABAJO", group: "move" },
+  { action: "attack", label: "GOLPE", group: "act primary" },
+  { action: "block", label: "BLOQ", group: "act" },
   { action: "dash", label: "DASH", group: "act" },
-  { action: "special", label: "SP", group: "act primary" },
+  { action: "special", label: "ESPECIAL", group: "act primary" },
 ];
 
 const KEY_MAP = {
@@ -41,6 +42,48 @@ function createImage(src) {
   return image;
 }
 
+function buildSpriteFrameRects(image) {
+  const frameWidth = Math.floor(image.naturalWidth / SPRITE_FRAME_COUNT);
+  const frameHeight = image.naturalHeight;
+  const canvas = document.createElement("canvas");
+  canvas.width = image.naturalWidth;
+  canvas.height = image.naturalHeight;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  ctx.drawImage(image, 0, 0);
+  const rects = [];
+
+  for (let index = 0; index < SPRITE_FRAME_COUNT; index += 1) {
+    const startX = index * frameWidth;
+    const data = ctx.getImageData(startX, 0, frameWidth, frameHeight).data;
+    let minX = frameWidth;
+    let minY = frameHeight;
+    let maxX = -1;
+    let maxY = -1;
+    for (let y = 0; y < frameHeight; y += 1) {
+      for (let x = 0; x < frameWidth; x += 1) {
+        const alpha = data[(y * frameWidth + x) * 4 + 3];
+        if (alpha < 10) continue;
+        if (x < minX) minX = x;
+        if (y < minY) minY = y;
+        if (x > maxX) maxX = x;
+        if (y > maxY) maxY = y;
+      }
+    }
+    if (maxX === -1) {
+      rects.push({ sx: startX, sy: 0, sw: frameWidth, sh: frameHeight });
+      continue;
+    }
+    rects.push({
+      sx: startX + minX,
+      sy: minY,
+      sw: Math.max(1, maxX - minX + 1),
+      sh: Math.max(1, maxY - minY + 1),
+    });
+  }
+
+  return rects;
+}
+
 function fighterColor(source, fallback) {
   if (Array.isArray(source?.color)) return source.color;
   return fallback;
@@ -57,13 +100,16 @@ function calcWeaponConfig(weapon) {
 }
 
 function makeFighter(meta, side, accent, weapon, socketId = null) {
+  const spriteUrl = meta.spriteUrl || meta.sprite_sheet || meta.spriteSheet || "";
   return {
     socketId,
     id: meta.id || side,
     name: meta.name || meta.fighterName || "Guerrero",
-    clanName: meta.clanName || "",
     portraitUrl: meta.portraitUrl || meta.portrait || "",
     portraitImage: createImage(meta.portraitUrl || meta.portrait || ""),
+    spriteUrl,
+    spriteSheetImage: createImage(spriteUrl),
+    spriteFrameRects: null,
     accent,
     x: side === "left" ? 220 : 1060,
     y: GROUND_Y,
@@ -89,9 +135,7 @@ function makeFighter(meta, side, accent, weapon, socketId = null) {
     attackCooldown: 0,
     specialCooldown: 0,
     action: null,
-    input: { left: false, right: false, up: false, down: false, block: false },
     remoteState: null,
-    remoteSyncTimer: 0,
     bobTime: Math.random() * Math.PI * 2,
   };
 }
@@ -100,9 +144,9 @@ export class BattleView {
   constructor(options) {
     this.options = options;
     this.mode = options.mode;
-    this.app = options.app;
     this.container = options.container;
-    this.remoteInput = {};
+    this.realtime = options.realtime || null;
+    this.audio = options.audio || null;
     this.localInput = {
       left: false,
       right: false,
@@ -114,13 +158,12 @@ export class BattleView {
     this.paused = false;
     this.active = false;
     this.pendingTimers = new Set();
-    this.touchButtons = new Map();
     this.cleanupFns = [];
     this.overlayText = "";
     this.overlaySubtext = "";
     this.round = options.currentRound || 1;
     this.matchEnded = false;
-    this.roundIntro = { text: `ROUND ${this.round}`, timer: 1.0, sequence: ["3", "2", "1", "FIGHT"], index: -1 };
+    this.roundIntro = { timer: 1.0, sequence: ["3", "2", "1", "FIGHT"], index: -1 };
     this.storyHints = options.storyHints || [];
     this.activeHint = "";
     this.background = createImage(options.arena.backgroundUrl);
@@ -139,8 +182,6 @@ export class BattleView {
       options.enemyWeapon,
       options.enemy.socketId || null,
     );
-    this.player.isLocal = true;
-    this.enemy.isLocal = false;
     this.lastFrame = 0;
   }
 
@@ -150,11 +191,14 @@ export class BattleView {
         <canvas class="battle-canvas" width="${LOGICAL_WIDTH}" height="${LOGICAL_HEIGHT}"></canvas>
         <button class="battle-pause-btn" type="button">II</button>
         <div class="battle-status">
-          <span class="battle-chip">${this.mode === "online" ? "ONLINE" : this.mode === "story" ? "HISTORIA" : "JUEGO RÁPIDO"}</span>
+          <span class="battle-chip">${this.mode === "online" ? "ONLINE" : this.mode === "story" ? "HISTORIA" : "JUEGO RAPIDO"}</span>
           <span class="battle-chip">RONDAS ${this.player.roundWins}-${this.enemy.roundWins}</span>
-          <span class="battle-chip">16:9 WEBVIEW</span>
+          <span class="battle-chip">CONTROLES LISTOS</span>
         </div>
-        <div class="battle-controls"></div>
+        <div class="battle-controls">
+          <div class="touch-pad move-pad" data-title="MOVIMIENTO"></div>
+          <div class="touch-pad action-pad" data-title="COMBATE"></div>
+        </div>
         <div class="battle-modal hidden"></div>
       </section>
     `;
@@ -166,6 +210,7 @@ export class BattleView {
     this.renderTouchControls();
     this.bindInput();
     this.bindOnline();
+    this.startRoundIntro(this.round);
     this.active = true;
     this.scheduleHint();
     this.frameHandle = requestAnimationFrame((timestamp) => this.loop(timestamp));
@@ -181,25 +226,23 @@ export class BattleView {
   }
 
   bindOnline() {
-    if (this.mode !== "online" || !this.options.realtime) return;
-    const realtime = this.options.realtime;
+    if (this.mode !== "online" || !this.realtime) return;
     this.cleanupFns.push(
-      realtime.on("opponent_input", (payload) => {
+      this.realtime.on("opponent_input", (payload) => {
         this.enemy.remoteState = payload;
-        this.enemy.input.block = Boolean(payload.block);
         this.enemy.isBlocking = Boolean(payload.block);
         this.enemy.crouching = Boolean(payload.down);
       }),
-      realtime.on("opponent_attack", (payload) => {
+      this.realtime.on("opponent_attack", (payload) => {
         this.startAction(this.enemy, payload.attackType === "special" ? "special" : "attack", false);
       }),
-      realtime.on("opponent_block", (payload) => {
+      this.realtime.on("opponent_block", (payload) => {
         this.enemy.isBlocking = Boolean(payload.active);
       }),
-      realtime.on("opponent_dodge", () => {
+      this.realtime.on("opponent_dodge", () => {
         this.triggerDash(this.enemy);
       }),
-      realtime.on("fighter_hit", (payload) => {
+      this.realtime.on("fighter_hit", (payload) => {
         const defender =
           payload.defenderSocketId === this.player.socketId
             ? this.player
@@ -210,7 +253,7 @@ export class BattleView {
         defender.health = clamp(payload.defenderHealth ?? defender.health, 0, defender.maxHealth);
         defender.hitFlash = 0.18;
       }),
-      realtime.on("health_update", (payload) => {
+      this.realtime.on("health_update", (payload) => {
         payload.players?.forEach((meta) => {
           const fighter =
             meta.socketId === this.player.socketId ? this.player : meta.socketId === this.enemy.socketId ? this.enemy : null;
@@ -219,25 +262,25 @@ export class BattleView {
           fighter.roundWins = meta.roundWins || 0;
         });
       }),
-      realtime.on("round_finished", (payload) => {
+      this.realtime.on("round_finished", (payload) => {
         this.player.roundWins = payload.players?.find((item) => item.socketId === this.player.socketId)?.roundWins || this.player.roundWins;
         this.enemy.roundWins = payload.players?.find((item) => item.socketId === this.enemy.socketId)?.roundWins || this.enemy.roundWins;
         this.overlayText = payload.winnerSocketId === this.player.socketId ? "ROUND GANADO" : "ROUND PERDIDO";
         this.overlaySubtext = `Marcador ${this.player.roundWins} - ${this.enemy.roundWins}`;
       }),
-      realtime.on("round_started", (payload) => {
+      this.realtime.on("round_started", (payload) => {
         this.round = payload.currentRound || this.round + 1;
         this.syncPlayers(payload.players || [], true);
         this.resetPositions();
         this.startRoundIntro(this.round);
       }),
-      realtime.on("match_finished", (payload) => {
+      this.realtime.on("match_finished", (payload) => {
         this.matchEnded = true;
         this.overlayText = payload.winnerSocketId === this.player.socketId ? "VICTORIA" : "DERROTA";
-        this.overlaySubtext = payload.winnerSocketId === this.player.socketId ? "La sala quedó a tu favor." : "El rival se llevó la arena.";
+        this.overlaySubtext = payload.winnerSocketId === this.player.socketId ? "La sala queda a tu favor." : "El rival se llevo la arena.";
         this.showEndModal(payload.winnerSocketId === this.player.socketId);
       }),
-      realtime.on("opponent_left", () => {
+      this.realtime.on("opponent_left", () => {
         this.matchEnded = true;
         this.overlayText = "RIVAL DESCONECTADO";
         this.overlaySubtext = "Se cierra la pelea online.";
@@ -260,12 +303,8 @@ export class BattleView {
   }
 
   bindInput() {
-    const handleKeyDown = (event) => {
-      this.handleKeyEvent(event, true);
-    };
-    const handleKeyUp = (event) => {
-      this.handleKeyEvent(event, false);
-    };
+    const handleKeyDown = (event) => this.handleKeyEvent(event, true);
+    const handleKeyUp = (event) => this.handleKeyEvent(event, false);
     window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("keyup", handleKeyUp);
     this.cleanupFns.push(() => window.removeEventListener("keydown", handleKeyDown));
@@ -273,32 +312,28 @@ export class BattleView {
   }
 
   handleKeyEvent(event, pressed) {
-      if (event.code === "Escape" && pressed) {
-        this.togglePause();
-        return;
+    if (event.code === "Escape" && pressed) {
+      this.togglePause();
+      return;
+    }
+    const action = KEY_MAP[event.code];
+    if (!action) return;
+    event.preventDefault();
+    if (action === "attack" || action === "dash" || action === "special") {
+      if (pressed) this.handleActionPress(action);
+      return;
+    }
+    if (action === "block") {
+      this.localInput.block = pressed;
+      if (this.mode === "online" && this.realtime) {
+        this.realtime.sendBlock({ active: pressed });
       }
-      const action = KEY_MAP[event.code];
-      if (!action) return;
-      event.preventDefault();
-      if (action === "attack" || action === "dash" || action === "special") {
-        if (pressed) this.handleActionPress(action);
-        return;
-      }
-      if (action === "block") {
-        this.localInput.block = pressed;
-        if (this.mode === "online" && this.options.realtime) {
-          this.options.realtime.sendBlock({ active: pressed });
-        }
-        return;
-      }
-      this.localInput[action] = pressed;
+      return;
+    }
+    this.localInput[action] = pressed;
   }
 
   renderTouchControls() {
-    this.controlsNode.innerHTML = `
-      <div class="touch-pad move-pad"></div>
-      <div class="touch-pad action-pad"></div>
-    `;
     const movePad = this.controlsNode.querySelector(".move-pad");
     const actionPad = this.controlsNode.querySelector(".action-pad");
     TOUCH_BUTTONS.forEach((button) => {
@@ -313,8 +348,8 @@ export class BattleView {
         }
         if (button.action === "block") {
           this.localInput.block = pressed;
-          if (this.mode === "online" && this.options.realtime) {
-            this.options.realtime.sendBlock({ active: pressed });
+          if (this.mode === "online" && this.realtime) {
+            this.realtime.sendBlock({ active: pressed });
           }
           return;
         }
@@ -333,8 +368,8 @@ export class BattleView {
   handleActionPress(action) {
     if (action === "dash") {
       this.triggerDash(this.player);
-      if (this.mode === "online" && this.options.realtime) {
-        this.options.realtime.sendDodge({ at: performance.now() });
+      if (this.mode === "online" && this.realtime) {
+        this.realtime.sendDodge({ at: performance.now() });
       }
       return;
     }
@@ -363,8 +398,8 @@ export class BattleView {
       duration: type === "special" ? 0.44 : 0.26,
       hitDone: false,
     };
-    if (this.mode === "online" && fighter === this.player && shouldBroadcast && this.options.realtime) {
-      this.options.realtime.sendAttack({ attackType: type });
+    if (this.mode === "online" && fighter === this.player && shouldBroadcast && this.realtime) {
+      this.realtime.sendAttack({ attackType: type });
     }
     if (this.mode !== "online" || fighter !== this.enemy) {
       this.tryResolveHit(fighter, target, type);
@@ -381,8 +416,8 @@ export class BattleView {
     const blocked = defender.isBlocking;
     const reduced = blocked ? baseDamage * 0.38 : baseDamage;
     const damage = Math.max(1, Math.round(reduced - defender.defense * 0.28));
-    if (this.mode === "online" && attacker === this.player && this.options.realtime) {
-      this.options.realtime.sendHit({
+    if (this.mode === "online" && attacker === this.player && this.realtime) {
+      this.realtime.sendHit({
         attackType: attackType === "special" ? "attack_heavy" : "attack_light",
         damage,
         blocked,
@@ -392,6 +427,9 @@ export class BattleView {
     }
     defender.health = clamp(defender.health - damage, 0, defender.maxHealth);
     defender.hitFlash = 0.18;
+    this.audio?.playEffect(
+      attackType === "special" ? "hitHeavy" : attackType === "attack" ? "hitLight" : "hitKick",
+    );
     defender.vx += (attacker === this.player ? 1 : -1) * (blocked ? 90 : attackType === "special" ? 180 : 110);
     if (defender.health <= 0) {
       this.finishRound(attacker === this.player);
@@ -422,7 +460,7 @@ export class BattleView {
     this.modalNode.innerHTML = `
       <div class="battle-modal-card">
         <h2>${playerWon ? "Victoria" : "Derrota"}</h2>
-        <p>${playerWon ? "La arena queda a tu favor." : "Tomá aire y volvé a intentarlo."}</p>
+        <p>${playerWon ? "La arena queda a tu favor." : "Toma aire y vuelve a intentarlo."}</p>
         <div class="battle-modal-actions">
           <button type="button" data-action="menu">Volver</button>
           ${this.mode !== "online" ? '<button type="button" data-action="retry">Revancha</button>' : ""}
@@ -490,14 +528,13 @@ export class BattleView {
     if (this.matchEnded) return;
     this.paused = !this.paused;
     this.overlayText = this.paused ? "PAUSA" : "";
-    this.overlaySubtext = this.paused ? "Tocá II para continuar" : "";
+    this.overlaySubtext = this.paused ? "Toca II para continuar" : "";
   }
 
   startRoundIntro(round) {
-    this.overlayText = "";
-    this.overlaySubtext = "";
+    this.overlayText = `ROUND ${round}`;
+    this.overlaySubtext = "Preparado";
     this.roundIntro = {
-      text: `ROUND ${round}`,
       timer: 1.0,
       sequence: ["3", "2", "1", "FIGHT"],
       index: -1,
@@ -515,9 +552,14 @@ export class BattleView {
       this.overlaySubtext = "";
       return;
     }
-    this.overlayText = this.roundIntro.index < 3 ? this.roundIntro.sequence[this.roundIntro.index] : "FIGHT";
-    this.overlaySubtext = this.roundIntro.index < 0 ? "" : "Dos victorias cierran la pelea";
-    this.roundIntro.timer = this.roundIntro.index < 0 ? 0.8 : this.roundIntro.index < 3 ? 0.8 : 0.95;
+    this.overlayText = this.roundIntro.sequence[this.roundIntro.index];
+    this.overlaySubtext = this.roundIntro.index < 3 ? "Dos victorias cierran la pelea" : "Lucha";
+    if (this.roundIntro.index < 3) {
+      this.audio?.playEffect("countTick");
+    } else {
+      this.audio?.playEffect("fightStart");
+    }
+    this.roundIntro.timer = this.roundIntro.index < 3 ? 0.8 : 0.95;
   }
 
   loop(timestamp) {
@@ -547,9 +589,9 @@ export class BattleView {
 
   sendOnlineInput(dt) {
     this.lastSentInput += dt;
-    if (this.lastSentInput < 1 / 15 || !this.options.realtime) return;
+    if (this.lastSentInput < 1 / 15 || !this.realtime) return;
     this.lastSentInput = 0;
-    this.options.realtime.sendInput({
+    this.realtime.sendInput({
       x: this.player.x,
       y: this.player.y,
       vx: this.player.vx,
@@ -623,7 +665,7 @@ export class BattleView {
     this.aiState.timer -= dt;
     if (this.aiState.timer <= 0) {
       const gap = distance(this.enemy, this.player);
-      const wantsAttack = gap < (this.enemy.weapon.range + 18);
+      const wantsAttack = gap < this.enemy.weapon.range + 18;
       const direction = this.player.x < this.enemy.x ? -1 : 1;
       this.aiState.command = {
         left: !wantsAttack && direction < 0,
@@ -688,48 +730,61 @@ export class BattleView {
     this.drawOverlayText();
     if (this.activeHint) {
       ctx.fillStyle = "rgba(0,0,0,0.72)";
-      ctx.fillRect(310, 120, 660, 54);
+      ctx.fillRect(250, 116, 780, 58);
       ctx.strokeStyle = "rgba(214,178,96,0.95)";
-      ctx.strokeRect(310, 120, 660, 54);
+      ctx.strokeRect(250, 116, 780, 58);
       ctx.fillStyle = "#f4f0e1";
       ctx.font = "600 24px Arial";
       ctx.textAlign = "center";
-      ctx.fillText(this.activeHint, LOGICAL_WIDTH / 2, 154);
+      ctx.fillText(this.activeHint, LOGICAL_WIDTH / 2, 152);
     }
   }
 
-  drawFighter(fighter) {
+  resolveSpriteFrameIndex(fighter) {
+    if (fighter.hitFlash > 0.08 && !fighter.action) return 6;
+    if (fighter.action?.type === "special") return 2;
+    if (fighter.action?.type === "attack") return 1;
+    if (!fighter.onGround || fighter.dodgeTimer > 0) return 4;
+    if (fighter.crouching || fighter.isBlocking) return 5;
+    return 0;
+  }
+
+  drawSpriteFighter(fighter) {
+    const image = fighter.spriteSheetImage;
+    if (!image?.complete || image.naturalWidth <= 0 || image.naturalHeight <= 0) return false;
+    if (!fighter.spriteFrameRects) {
+      fighter.spriteFrameRects = buildSpriteFrameRects(image);
+    }
+    const frame = fighter.spriteFrameRects[this.resolveSpriteFrameIndex(fighter)];
+    if (!frame) return false;
+
     const ctx = this.ctx;
-    const bob = Math.sin(fighter.bobTime) * 3;
-    const x = fighter.x;
-    const y = fighter.y + bob;
+    const bob = Math.sin(fighter.bobTime * 1.35) * 2.2;
+    const poseOffsetX =
+      fighter.action?.type === "special"
+        ? 14
+        : fighter.action?.type === "attack"
+          ? 10
+          : !fighter.onGround || fighter.dodgeTimer > 0
+            ? 12
+            : fighter.crouching || fighter.isBlocking
+              ? 8
+              : 0;
+    const targetHeight = fighter.crouching || fighter.isBlocking ? 164 : !fighter.onGround ? 176 : 184;
+    const scale = targetHeight / frame.sh;
+    const drawWidth = frame.sw * scale;
+    const drawHeight = frame.sh * scale;
+    const drawX = -drawWidth / 2;
+    const drawY = -drawHeight + (fighter.crouching || fighter.isBlocking ? 26 : 10);
+
     ctx.save();
-    ctx.translate(x, y);
+    ctx.translate(fighter.x + poseOffsetX * fighter.facing, fighter.y + bob);
     if (fighter.facing < 0) ctx.scale(-1, 1);
     ctx.fillStyle = fighter.hitFlash > 0 ? "rgba(255,240,240,0.95)" : "rgba(0,0,0,0.26)";
     ctx.beginPath();
-    ctx.ellipse(0, 10, 46, fighter.onGround ? 16 : 11, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, 12, fighter.crouching ? 52 : 46, fighter.onGround ? 16 : 11, 0, 0, Math.PI * 2);
     ctx.fill();
-    const bodyLift = fighter.action?.type === "special" ? -18 : fighter.dodgeTimer > 0 ? -8 : 0;
-    const bodyTilt = fighter.action?.type === "attack" ? 0.18 : fighter.action?.type === "special" ? 0.32 : 0;
-    ctx.translate(0, bodyLift);
-    ctx.rotate(bodyTilt);
-    ctx.fillStyle = `rgb(${fighter.accent.join(",")})`;
-    ctx.fillRect(-24, -110, 48, 78);
-    ctx.fillStyle = "#f0d3b0";
-    ctx.beginPath();
-    ctx.arc(0, -132, 24, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = "#17181d";
-    ctx.fillRect(-18, -34, 14, 54);
-    ctx.fillRect(4, -34, 14, 54);
-    ctx.fillStyle = "#d9dde8";
-    const armReach = fighter.action?.type === "special" ? 70 : fighter.action?.type === "attack" ? 54 : 24;
-    ctx.fillRect(10, -94, armReach, 10);
-    ctx.fillStyle = "#50535f";
-    ctx.fillRect(24, -92, armReach + 12, 6);
-    ctx.fillStyle = "#f0d3b0";
-    ctx.fillRect(-34, -92, 20, 10);
+    ctx.drawImage(image, frame.sx, frame.sy, frame.sw, frame.sh, drawX, drawY, drawWidth, drawHeight);
     if (fighter.isBlocking) {
       ctx.strokeStyle = "rgba(198,228,255,0.92)";
       ctx.lineWidth = 8;
@@ -737,9 +792,146 @@ export class BattleView {
       ctx.arc(8, -72, 30, -0.5, 1.4);
       ctx.stroke();
     }
-    if (fighter.crouching) {
-      ctx.fillStyle = "rgba(0,0,0,0.18)";
-      ctx.fillRect(-30, -54, 60, 16);
+    if (fighter.hitFlash > 0) {
+      ctx.strokeStyle = "rgba(255,255,255,0.78)";
+      ctx.lineWidth = 3;
+      ctx.strokeRect(drawX - 4, drawY - 4, drawWidth + 8, drawHeight + 8);
+    }
+    ctx.restore();
+    return true;
+  }
+
+  drawFighter(fighter) {
+    if (this.drawSpriteFighter(fighter)) {
+      return;
+    }
+    const ctx = this.ctx;
+    const bob = Math.sin(fighter.bobTime * 1.4) * 2.8;
+    const x = fighter.x;
+    const y = fighter.y + bob;
+    const attacking = fighter.action?.type === "attack";
+    const special = fighter.action?.type === "special";
+    const crouching = fighter.crouching;
+    const blocking = fighter.isBlocking;
+    const airborne = !fighter.onGround;
+    const dashing = fighter.dodgeTimer > 0;
+    const stanceOffset = crouching ? 24 : airborne ? -18 : 0;
+    const torsoTilt = special ? 0.28 : attacking ? 0.12 : blocking ? -0.08 : 0;
+    const armReach = special ? 82 : attacking ? 58 : blocking ? 20 : 28;
+    const bladeReach = special ? 126 : attacking ? 92 : 54;
+    const robeDark = fighter.accent.map((value) => Math.max(24, Math.round(value * 0.42)));
+    const robeLight = fighter.accent.map((value) => Math.min(255, Math.round(value * 1.08)));
+    ctx.save();
+    ctx.translate(x, y);
+    if (fighter.facing < 0) ctx.scale(-1, 1);
+
+    ctx.fillStyle = fighter.hitFlash > 0 ? "rgba(255,240,240,0.95)" : "rgba(0,0,0,0.26)";
+    ctx.beginPath();
+    ctx.ellipse(0, 12, crouching ? 52 : 46, fighter.onGround ? 16 : 11, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.translate(0, special ? -16 : dashing ? -8 : 0);
+    ctx.translate(0, stanceOffset);
+    ctx.rotate(torsoTilt);
+
+    ctx.fillStyle = `rgb(${robeDark.join(",")})`;
+    ctx.beginPath();
+    ctx.moveTo(-20, -108);
+    ctx.lineTo(18, -108);
+    ctx.lineTo(26, -38);
+    ctx.lineTo(-28, -38);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = `rgb(${robeLight.join(",")})`;
+    ctx.beginPath();
+    ctx.moveTo(-24, -110);
+    ctx.lineTo(22, -110);
+    ctx.lineTo(26, -46);
+    ctx.lineTo(0, crouching ? -8 : 6);
+    ctx.lineTo(-28, -46);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = "#d7b15d";
+    ctx.fillRect(-22, -76, 44, 8);
+    ctx.fillStyle = "#1b1714";
+    ctx.fillRect(-18, -68, 36, 12);
+
+    ctx.fillStyle = "#f0d3b0";
+    ctx.beginPath();
+    ctx.arc(0, -132, 23, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#16171d";
+    ctx.beginPath();
+    ctx.arc(0, -143, 15, Math.PI, 0);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(10, -152, 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#b63c3c";
+    ctx.fillRect(-18, -138, 36, 6);
+
+    ctx.strokeStyle = "#17181d";
+    ctx.lineWidth = 12;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(-10, -34);
+    ctx.lineTo(crouching ? -14 : -18, 24);
+    ctx.moveTo(12, -34);
+    ctx.lineTo(crouching ? 18 : 16, 24);
+    ctx.stroke();
+
+    ctx.strokeStyle = "#0e0f14";
+    ctx.lineWidth = 14;
+    ctx.beginPath();
+    ctx.moveTo(-8, -92);
+    ctx.lineTo(-34, blocking ? -58 : -64);
+    ctx.stroke();
+
+    ctx.strokeStyle = "#f0d3b0";
+    ctx.lineWidth = 10;
+    ctx.beginPath();
+    ctx.moveTo(10, -92);
+    ctx.lineTo(18 + armReach, blocking ? -82 : special ? -104 : -90);
+    ctx.stroke();
+
+    ctx.strokeStyle = special ? "#f4ece0" : "#cfd6e2";
+    ctx.lineWidth = special ? 7 : 5;
+    ctx.beginPath();
+    ctx.moveTo(26, -90);
+    ctx.lineTo(24 + bladeReach, special ? -130 : -102);
+    ctx.stroke();
+
+    ctx.strokeStyle = "#6b717c";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(18, -88);
+    ctx.lineTo(36, -78);
+    ctx.stroke();
+
+    if (blocking) {
+      ctx.strokeStyle = "rgba(198,228,255,0.92)";
+      ctx.lineWidth = 8;
+      ctx.beginPath();
+      ctx.arc(8, -72, 30, -0.5, 1.4);
+      ctx.stroke();
+    }
+
+    if (airborne) {
+      ctx.strokeStyle = "rgba(255,255,255,0.2)";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(-18, 8);
+      ctx.lineTo(-2, 18);
+      ctx.lineTo(18, 8);
+      ctx.stroke();
+    }
+
+    if (fighter.hitFlash > 0) {
+      ctx.strokeStyle = "rgba(255,255,255,0.75)";
+      ctx.lineWidth = 3;
+      ctx.strokeRect(-30, -156, 70, 190);
     }
     ctx.restore();
   }
@@ -747,16 +939,16 @@ export class BattleView {
   drawHud() {
     const ctx = this.ctx;
     const drawBar = (x, y, width, value, max, fill, alignRight = false) => {
-      ctx.fillStyle = "rgba(0,0,0,0.58)";
+      ctx.fillStyle = "rgba(7,8,12,0.72)";
       ctx.fillRect(x, y, width, 22);
       const innerWidth = clamp((value / max) * (width - 6), 0, width - 6);
       ctx.fillStyle = fill;
       ctx.fillRect(alignRight ? x + width - 3 - innerWidth : x + 3, y + 3, innerWidth, 16);
-      ctx.strokeStyle = "rgba(255,255,255,0.18)";
+      ctx.strokeStyle = "rgba(214,178,96,0.78)";
       ctx.strokeRect(x, y, width, 22);
     };
     const drawPortrait = (fighter, x, y) => {
-      ctx.fillStyle = "rgba(0,0,0,0.54)";
+      ctx.fillStyle = "rgba(7,8,12,0.76)";
       ctx.fillRect(x, y, 86, 86);
       ctx.strokeStyle = `rgb(${fighter.accent.join(",")})`;
       ctx.lineWidth = 3;
@@ -765,6 +957,12 @@ export class BattleView {
         ctx.drawImage(fighter.portraitImage, x + 4, y + 4, 78, 78);
       }
     };
+    ctx.fillStyle = "rgba(0,0,0,0.32)";
+    ctx.fillRect(18, 14, 486, 102);
+    ctx.fillRect(776, 14, 486, 102);
+    ctx.strokeStyle = "rgba(214,178,96,0.4)";
+    ctx.strokeRect(18, 14, 486, 102);
+    ctx.strokeRect(776, 14, 486, 102);
     drawPortrait(this.player, 28, 20);
     drawPortrait(this.enemy, 1166, 20);
     drawBar(126, 28, 370, this.player.health, this.player.maxHealth, "#b84552");
@@ -772,16 +970,23 @@ export class BattleView {
     drawBar(784, 28, 370, this.enemy.health, this.enemy.maxHealth, "#506dc9", true);
     drawBar(834, 58, 320, this.enemy.stamina, this.enemy.maxStamina, "#d6b260", true);
     ctx.fillStyle = "#f4f0e1";
-    ctx.font = "700 24px Arial";
+    ctx.font = "700 24px Georgia";
     ctx.textAlign = "left";
     ctx.fillText(this.player.name, 126, 102);
     ctx.textAlign = "right";
     ctx.fillText(this.enemy.name, 1154, 102);
     ctx.textAlign = "center";
-    ctx.font = "700 34px Arial";
+    ctx.font = "700 34px Georgia";
     ctx.fillText(`${this.player.roundWins} - ${this.enemy.roundWins}`, LOGICAL_WIDTH / 2, 48);
     ctx.font = "600 18px Arial";
     ctx.fillText(`ROUND ${this.round}`, LOGICAL_WIDTH / 2, 72);
+    ctx.font = "600 14px Arial";
+    ctx.textAlign = "left";
+    ctx.fillText("VIDA", 126, 22);
+    ctx.fillText("STAMINA", 126, 52);
+    ctx.textAlign = "right";
+    ctx.fillText("VIDA", 1154, 22);
+    ctx.fillText("STAMINA", 1154, 52);
   }
 
   drawOverlayText() {

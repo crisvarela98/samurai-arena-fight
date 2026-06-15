@@ -9,6 +9,7 @@ const DEFAULT_PROGRESS = {
 };
 
 const DEFAULT_SETTINGS = {
+  serverUrl: "",
   apiBaseUrl: "",
   socketUrl: "",
   musicMuted: false,
