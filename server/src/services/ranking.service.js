@@ -4,6 +4,7 @@ const User = require("../models/User");
 const { databaseReady } = require("./user.service");
 
 const RANKING_POINTS_PER_WIN = 10;
+const HONOR_POINTS_PER_WIN = 10;
 
 async function upsertRanking(winner, loser) {
   if (!databaseReady()) return;
@@ -13,13 +14,17 @@ async function upsertRanking(winner, loser) {
     await Ranking.findOneAndUpdate(
       { username: winnerUsername },
       {
-        $inc: { wins: 1, points: 10 },
+        $inc: { wins: 1, points: RANKING_POINTS_PER_WIN },
         $set: { clan: winner.clanId, weapon: winner.weaponId },
         $setOnInsert: { username: winnerUsername, userId: winner.userId || null },
       },
       { upsert: true, new: true }
     );
-    if (winner.userId) await User.findByIdAndUpdate(winner.userId, { $inc: { wins: 1, rankingPoints: 10 } });
+    if (winner.userId) {
+      await User.findByIdAndUpdate(winner.userId, {
+        $inc: { wins: 1, rankingPoints: RANKING_POINTS_PER_WIN, honorPoints: HONOR_POINTS_PER_WIN },
+      });
+    }
   }
   if (loserUsername) {
     await Ranking.findOneAndUpdate(

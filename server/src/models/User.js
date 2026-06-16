@@ -2,10 +2,10 @@ const mongoose = require("mongoose");
 
 const userSchema = new mongoose.Schema(
   {
-    username: { type: String, required: true, unique: true, trim: true },
+    username: { type: String, required: true, unique: true, trim: true, lowercase: true },
     email: { type: String, required: true, unique: true, trim: true, lowercase: true },
     passwordHash: { type: String, required: true },
-    coins: { type: Number, default: 0 },
+    honorPoints: { type: Number, default: 0 },
     wins: { type: Number, default: 0 },
     losses: { type: Number, default: 0 },
     rankingPoints: { type: Number, default: 0 },

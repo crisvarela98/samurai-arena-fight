@@ -147,6 +147,10 @@ button {
   background: linear-gradient(90deg, rgba(6, 8, 12, 0.08) 0%, rgba(6, 8, 12, 0.3) 45%, rgba(3, 4, 6, 0.86) 76%);
 }
 
+.scene-overlay-menu {
+  background: linear-gradient(180deg, rgba(6, 8, 12, 0.12), rgba(4, 5, 7, 0.34));
+}
+
 .splash-card {
   position: relative;
   z-index: 2;
@@ -220,6 +224,37 @@ button {
   justify-content: space-between;
 }
 
+.clean-menu {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+  grid-template-rows: auto 1fr auto;
+  align-items: start;
+  gap: 16px 18px;
+  overflow: hidden;
+}
+
+.menu-topbar {
+  grid-column: 1 / -1;
+  align-self: start;
+}
+
+.story-act-box {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: rgba(9, 11, 16, 0.72);
+  border: 1px solid rgba(216, 188, 114, 0.24);
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.22);
+}
+
+.story-act-value {
+  color: #f3efe3;
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+}
+
 .menu-copy-panel,
 .menu-stage-copy,
 .vintage-menu-panel,
@@ -274,6 +309,89 @@ button {
   gap: 16px;
   position: relative;
   z-index: 2;
+}
+
+.menu-panel-main {
+  grid-column: 2;
+  grid-row: 2;
+  width: 100%;
+  max-width: 360px;
+  margin: 0 0 0 auto;
+  align-self: end;
+  padding: 20px 22px;
+  gap: 12px;
+}
+
+.menu-auth-footer {
+  grid-column: 1 / -1;
+  grid-row: 3;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border-radius: 20px;
+  background: rgba(9, 11, 16, 0.72);
+  border: 1px solid rgba(216, 188, 114, 0.18);
+  box-shadow: 0 16px 30px rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(12px);
+  position: relative;
+  z-index: 2;
+}
+
+.menu-auth-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.menu-auth-copy strong {
+  color: #f3efe3;
+  font-size: 0.96rem;
+}
+
+.menu-footer-profile {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.menu-footer-pills,
+.menu-footer-session {
+  align-items: center;
+}
+
+.menu-footer-session {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.menu-auth-actions,
+.auth-switch-row,
+.auth-remember-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.menu-auth-actions .menu-btn {
+  min-height: 46px;
+  padding: 10px 16px;
+}
+
+.menu-panel-main h2 {
+  font-size: clamp(1.35rem, 2vw, 1.8rem);
+}
+
+.menu-panel-main .menu-btn {
+  min-height: 48px;
+  padding: 10px 16px;
+}
+
+.menu-panel-main .status-row {
+  gap: 8px;
 }
 
 .vintage-menu-panel::before {
@@ -530,6 +648,18 @@ h3 {
   gap: 12px;
 }
 
+.auth-switch-row {
+  justify-content: flex-start;
+}
+
+.auth-remember-row {
+  justify-content: space-between;
+}
+
+.helper.compact {
+  font-size: 0.82rem;
+}
+
 input {
   width: 100%;
   min-height: 48px;
@@ -605,6 +735,43 @@ label {
 .online-preview-copy {
   display: grid;
   gap: 8px;
+}
+
+.online-entry-card {
+  max-width: 1040px;
+  margin: 0 auto;
+}
+
+.clan-entry-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.clan-entry-card {
+  align-items: stretch;
+  text-align: left;
+  padding: 12px;
+}
+
+.clan-entry-card img {
+  aspect-ratio: 16 / 10;
+  max-height: 220px;
+}
+
+.clan-entry-copy {
+  display: grid;
+  gap: 6px;
+}
+
+.clan-entry-copy strong {
+  color: #f3efe3;
+  font-size: 1.06rem;
+}
+
+.clan-entry-copy span:last-child {
+  color: #cdd3e4;
+  font-size: 0.9rem;
 }
 
 .ranking-card {
@@ -725,6 +892,14 @@ label {
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(214, 178, 96, 0.14);
+}
+
+.audio-stack {
+  align-items: stretch;
+}
+
+.audio-stack .sound-toggle {
+  align-self: center;
 }
 
 .control-columns {
@@ -909,8 +1084,29 @@ label {
     grid-template-columns: 1fr;
   }
 
+  .clean-menu {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto;
+    align-items: end;
+  }
+
+  .menu-panel-main {
+    grid-column: 1;
+    grid-row: 2;
+    max-width: none;
+  }
+
+  .menu-auth-footer {
+    grid-column: 1;
+    grid-row: 3;
+  }
+
   .weapon-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .clan-entry-grid {
+    grid-template-columns: 1fr;
   }
 
   .control-columns {
@@ -963,6 +1159,14 @@ label {
     padding: 0;
   }
 
+  .menu-auth-footer {
+    padding: 12px;
+  }
+
+  .menu-auth-copy strong {
+    font-size: 0.9rem;
+  }
+
   .logo-slot {
     width: 94%;
     min-height: 92px;
@@ -970,6 +1174,15 @@ label {
 
   .logo-slot.game {
     min-height: 132px;
+  }
+
+  .audio-panel {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .audio-stack .sound-toggle {
+    width: 100%;
   }
 
   .topbar-note,
@@ -1002,6 +1215,10 @@ label {
     grid-template-columns: 1.02fr 0.98fr;
   }
 
+  .clan-entry-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .selection-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     align-items: start;
@@ -1025,7 +1242,7 @@ label {
 }
 
 @media (orientation: landscape) and (max-height: 540px) {
-  .menu-scene {
+  .menu-scene:not(.clean-menu) {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(280px, 320px);
     grid-template-rows: auto 1fr;
@@ -1035,6 +1252,12 @@ label {
     align-items: end;
     gap: 12px 16px;
     overflow: hidden;
+  }
+
+  .clean-menu {
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 318px);
+    grid-template-rows: auto 1fr auto;
+    gap: 10px 14px;
   }
 
   .menu-scene > .scene-topbar {
@@ -1077,12 +1300,29 @@ label {
     top: 12px;
   }
 
+  .menu-panel-main {
+    grid-column: 2;
+    grid-row: 2;
+    padding: 16px 16px 14px;
+    gap: 10px;
+  }
+
+  .menu-panel-main .menu-btn {
+    min-height: 42px;
+    padding: 8px 14px;
+  }
+
   .status-row {
     gap: 8px;
   }
 
-  .status-row .pill:last-child {
+  .menu-panel-main .status-row .pill:last-child {
     display: none;
+  }
+
+  .menu-auth-footer {
+    padding: 10px 12px;
+    gap: 12px;
   }
 
   .online-grid {
@@ -1291,5 +1531,28 @@ label {
 
   .touch-btn.jump {
     font-size: 0.72rem;
+  }
+}
+
+@media (max-width: 720px) {
+  .menu-auth-footer,
+  .auth-remember-row,
+  .menu-footer-session {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .menu-auth-actions,
+  .auth-switch-row,
+  .menu-footer-session,
+  .menu-footer-pills {
+    width: 100%;
+  }
+
+  .menu-auth-actions .menu-btn,
+  .auth-switch-row .pill-button,
+  .auth-remember-row .pill-button,
+  .menu-footer-session .pill {
+    width: 100%;
   }
 }

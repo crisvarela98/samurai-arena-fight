@@ -11,6 +11,7 @@ export class WebAudioManager {
     this.assetUrl = assetUrl;
     this.scene = "splash";
     this.unlocked = false;
+    this.audioContext = null;
     this.menuMusic = createLoopingAudio(this.assetUrl("assets/audio/menu_theme.wav"));
     this.effects = {
       countTick: this.assetUrl("assets/audio/count_tick.wav"),
@@ -33,6 +34,8 @@ export class WebAudioManager {
   handleUnlock() {
     if (this.unlocked) return;
     this.unlocked = true;
+    this.ensureAudioContext();
+    this.audioContext?.resume?.().catch(() => {});
     this.applyScene();
   }
 
@@ -77,19 +80,53 @@ export class WebAudioManager {
     this.menuMusic.currentTime = 0;
   }
 
-  toggleAll() {
-    const nextMuted = !this.settings.musicMuted;
-    this.settings.musicMuted = nextMuted;
-    this.settings.fxMuted = nextMuted;
+  toggleMusic() {
+    this.settings.musicMuted = !this.settings.musicMuted;
     this.applyScene();
     return {
       musicMuted: this.settings.musicMuted,
+    };
+  }
+
+  toggleFx() {
+    this.settings.fxMuted = !this.settings.fxMuted;
+    return {
       fxMuted: this.settings.fxMuted,
     };
   }
 
+  ensureAudioContext() {
+    if (this.audioContext) return this.audioContext;
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) return null;
+    this.audioContext = new AudioContextClass();
+    return this.audioContext;
+  }
+
+  playUiTapTone() {
+    const context = this.ensureAudioContext();
+    if (!context) return;
+    const now = context.currentTime;
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    oscillator.type = "triangle";
+    oscillator.frequency.setValueAtTime(680, now);
+    oscillator.frequency.exponentialRampToValueAtTime(420, now + 0.07);
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.04, now + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.09);
+    oscillator.connect(gain);
+    gain.connect(context.destination);
+    oscillator.start(now);
+    oscillator.stop(now + 0.1);
+  }
+
   playEffect(key) {
     if (!this.unlocked || !this.isFxEnabled()) return;
+    if (key === "uiTap") {
+      this.playUiTapTone();
+      return;
+    }
     const src = this.effects[key];
     if (!src) return;
     const audio = new Audio(src);

@@ -41,6 +41,18 @@ function backendLabel(url) {
   }
 }
 
+function cloneSceneParams(params = {}) {
+  try {
+    return structuredClone(params);
+  } catch (_error) {
+    return JSON.parse(JSON.stringify(params || {}));
+  }
+}
+
+function sameSceneState(left, right) {
+  return left?.scene === right?.scene && JSON.stringify(left?.params || {}) === JSON.stringify(right?.params || {});
+}
+
 export class SamuraiArenaWebApp {
   constructor(root, data) {
     this.root = root;
@@ -48,6 +60,7 @@ export class SamuraiArenaWebApp {
     this.settings = loadSettings();
     this.progress = loadProgress();
     this.auth = loadAuth();
+    this.rememberAuth = Boolean(this.auth.token);
     this.onlineProfile = loadOnlineProfile();
     this.runtimeConfig = resolveRuntimeConfig(this.settings);
     this.api = new ApiClient(() => this.runtimeConfig, () => this.auth.token);
@@ -59,6 +72,9 @@ export class SamuraiArenaWebApp {
     this.roomSnapshot = null;
     this.onlineLists = { rooms: [], ranking: [], clanRanking: [], rankingSummary: null };
     this.renderVersion = 0;
+    this.sceneHistory = [];
+    this.historyReady = false;
+    this.handleBrowserBack = this.handleBrowserBack.bind(this);
     this.bindRealtime();
   }
 
@@ -85,6 +101,7 @@ export class SamuraiArenaWebApp {
   }
 
   async init() {
+    this.setupBackNavigation();
     this.renderFrame();
     this.audio.setScene("splash");
     if (this.auth.token) {
@@ -95,17 +112,18 @@ export class SamuraiArenaWebApp {
       } catch (_error) {
         clearAuth();
         this.auth = loadAuth();
+        this.rememberAuth = false;
       }
     }
-    setTimeout(() => this.go("menu"), 2000);
+    setTimeout(() => this.go("menu", {}, { resetHistoryRoot: true }), 2000);
   }
 
   themeUrl(fileName) {
     return this.data.assetUrl(`assets/ui/${fileName}`);
   }
 
-  renderSoundToggle(size = "") {
-    return `<button type="button" class="sound-toggle ${size}" data-action="toggle-sound"><span class="sound-indicator ${this.settings.musicMuted ? "off" : "on"}"></span>${this.settings.musicMuted ? "AUDIO OFF" : "AUDIO ON"}</button>`;
+  renderAudioToggle(action, label, enabled, size = "") {
+    return `<button type="button" class="sound-toggle ${size}" data-action="${action}"><span class="sound-indicator ${enabled ? "on" : "off"}"></span>${label} ${enabled ? "ON" : "OFF"}</button>`;
   }
 
   rankingRangeMeta(range) {
@@ -127,21 +145,151 @@ export class SamuraiArenaWebApp {
     };
   }
 
+  storyActLabel() {
+    const act = Math.max(1, Number(this.progress.story_act || 1));
+    const actTitles = {
+      1: "EL DESPERTAR",
+    };
+    return actTitles[act] ? `ACTO ${act} - ${actTitles[act]}` : `ACTO ${act}`;
+  }
+
+  previewHonorPoints() {
+    return 0;
+  }
+
+  authSceneState(params = this.sceneParams) {
+    return {
+      authMode: params.authMode === "register" ? "register" : "login",
+      rememberAuth: params.rememberAuth !== false,
+    };
+  }
+
+  applyAuthenticatedUser(result, rememberAuth = true) {
+    this.auth = result;
+    this.rememberAuth = rememberAuth;
+    if (rememberAuth) {
+      saveAuth(this.auth);
+    } else {
+      clearAuth();
+    }
+    this.onlineProfile.username = result.user.username;
+    saveOnlineProfile(this.onlineProfile);
+  }
+
+  async submitAuthLogin(form, rememberAuth = true) {
+    const payload = new FormData(form);
+    const identity = String(payload.get("identity") || "").trim();
+    const password = String(payload.get("password") || "");
+    if (!identity || !password) {
+      this.toast("Completa usuario o mail y la contrasena.");
+      return false;
+    }
+    try {
+      const result = await this.api.login(identity, password);
+      this.applyAuthenticatedUser(result, rememberAuth);
+      return true;
+    } catch (error) {
+      this.toast(error.message);
+      return false;
+    }
+  }
+
+  async submitAuthRegister(form, rememberAuth = true) {
+    const payload = new FormData(form);
+    const username = String(payload.get("username") || "").trim();
+    const email = String(payload.get("email") || "").trim().toLowerCase();
+    const password = String(payload.get("password") || "");
+    if (username.length < 3) {
+      this.toast("El usuario debe tener al menos 3 caracteres.");
+      return false;
+    }
+    if (!email.includes("@")) {
+      this.toast("Ingresa un mail valido.");
+      return false;
+    }
+    if (!/^\d{8}$/.test(password)) {
+      this.toast("La contrasena debe tener 8 digitos.");
+      return false;
+    }
+    try {
+      const result = await this.api.register(username, email, password);
+      this.applyAuthenticatedUser(result, rememberAuth);
+      return true;
+    } catch (error) {
+      this.toast(error.message);
+      return false;
+    }
+  }
+
   syncSettings() {
     saveSettings(this.settings);
     this.runtimeConfig = resolveRuntimeConfig(this.settings);
     this.audio.setSettings(this.settings);
   }
 
-  toggleSound() {
-    const next = this.audio.toggleAll();
+  toggleMusic() {
+    const next = this.audio.toggleMusic();
     this.settings.musicMuted = next.musicMuted;
-    this.settings.fxMuted = next.fxMuted;
     this.syncSettings();
     this.renderFrame();
   }
 
-  go(scene, params = {}) {
+  toggleFx() {
+    const next = this.audio.toggleFx();
+    this.settings.fxMuted = next.fxMuted;
+    this.syncSettings();
+    if (!this.settings.fxMuted) {
+      this.audio.playEffect("uiTap");
+    }
+    this.renderFrame();
+  }
+
+  setupBackNavigation() {
+    if (this.historyReady || typeof window === "undefined") return;
+    this.historyReady = true;
+    this.sceneHistory = [{ scene: this.scene, params: cloneSceneParams(this.sceneParams) }];
+    window.addEventListener("popstate", this.handleBrowserBack);
+    window.history.replaceState({ __samuraiArenaFight: true, guard: true }, "");
+    window.history.pushState({ __samuraiArenaFight: true, cursor: 0 }, "");
+  }
+
+  resetBackNavigationRoot(scene = this.scene, params = this.sceneParams) {
+    if (!this.historyReady || typeof window === "undefined") return;
+    this.sceneHistory = [{ scene, params: cloneSceneParams(params) }];
+    window.history.replaceState({ __samuraiArenaFight: true, guard: true }, "");
+    window.history.pushState({ __samuraiArenaFight: true, cursor: 0 }, "");
+  }
+
+  pushBackNavigation(scene = this.scene, params = this.sceneParams) {
+    if (!this.historyReady || typeof window === "undefined") return;
+    const snapshot = { scene, params: cloneSceneParams(params) };
+    const previous = this.sceneHistory[this.sceneHistory.length - 1];
+    if (sameSceneState(previous, snapshot)) return;
+    this.sceneHistory.push(snapshot);
+    window.history.pushState({ __samuraiArenaFight: true, cursor: this.sceneHistory.length - 1 }, "");
+  }
+
+  handleBrowserBack(event) {
+    const state = event.state;
+    if (!state?.__samuraiArenaFight) {
+      window.history.pushState({ __samuraiArenaFight: true, cursor: Math.max(0, this.sceneHistory.length - 1) }, "");
+      return;
+    }
+    if (state.guard) {
+      window.history.pushState({ __samuraiArenaFight: true, cursor: Math.max(0, this.sceneHistory.length - 1) }, "");
+      return;
+    }
+    const cursor = Math.max(0, Math.min(Number(state.cursor || 0), this.sceneHistory.length - 1));
+    const target = this.sceneHistory[cursor];
+    if (!target) {
+      window.history.pushState({ __samuraiArenaFight: true, cursor: Math.max(0, this.sceneHistory.length - 1) }, "");
+      return;
+    }
+    this.sceneHistory = this.sceneHistory.slice(0, cursor + 1);
+    this.go(target.scene, target.params, { fromHistory: true });
+  }
+
+  go(scene, params = {}, options = {}) {
     if (this.battle) {
       this.battle.destroy();
       this.battle = null;
@@ -150,6 +298,13 @@ export class SamuraiArenaWebApp {
     this.sceneParams = params;
     this.audio.setScene(scene);
     this.renderFrame();
+    if (options.resetHistoryRoot) {
+      this.resetBackNavigationRoot(scene, params);
+      return;
+    }
+    if (!options.fromHistory) {
+      this.pushBackNavigation(scene, params);
+    }
   }
 
   renderFrame() {
@@ -202,32 +357,21 @@ export class SamuraiArenaWebApp {
 
   renderMenu() {
     const canOnline = this.progress.first_time_completed || this.progress.unlocked_modes.includes("Online");
+    const showGuestAccess = !this.auth.token;
+    const honorPoints = Number(this.auth.user?.honorPoints ?? this.previewHonorPoints());
+    const currentLevel = Number(this.auth.user?.level || Math.max(1, Math.floor(honorPoints / 250) + 1));
     this.stage.innerHTML = `
-      <section class="scene menu-scene scene-backdrop" style="--scene-image: url('${this.themeUrl("menu_main_bg_v2.png")}')">
-        <div class="scene-overlay scene-overlay-right"></div>
-        <div class="scene-topbar">
-          <div class="topbar-copy">
-            <span class="eyebrow">ACTO 1 - EL DESPERTAR</span>
-            <span class="topbar-note">Menu clasico, samurai destacado y acceso rapido a la historia</span>
-          </div>
-          <div class="topbar-actions">
-            ${this.renderSoundToggle()}
+      <section class="scene menu-scene clean-menu scene-backdrop" style="--scene-image: url('${this.themeUrl("menu_main_bg_v2.png")}')">
+        <div class="scene-overlay scene-overlay-menu"></div>
+        <div class="scene-topbar menu-topbar">
+          <div class="story-act-box">
+            <span class="eyebrow">Modo historia</span>
+            <strong class="story-act-value">${this.storyActLabel()}</strong>
           </div>
         </div>
 
-        <div class="menu-stage-copy">
-          <span class="eyebrow">SAMURAI ARENA FIGHT</span>
-          <h1>Kenji vuelve a la arena</h1>
-          <p>Vuelve el estilo vintage del menu. El panel derecho concentra las opciones y el samurai vuelve a dominar el resto de la pantalla.</p>
-          <div class="menu-badges">
-            <span class="pill accent">ANDROID</span>
-            <span class="pill">LANDSCAPE</span>
-            <span class="pill">${this.auth.user ? `SESION ${this.auth.user.username}` : "SIN SESION"}</span>
-          </div>
-        </div>
-
-        <div class="vintage-menu-panel">
-          <span class="eyebrow">MENU PRINCIPAL</span>
+        <div class="vintage-menu-panel menu-panel-main">
+          <span class="eyebrow">Principal</span>
           <h2>Elegi tu camino</h2>
           <div class="menu-actions vertical">
             ${button("Juego rapido", "quick")}
@@ -237,13 +381,40 @@ export class SamuraiArenaWebApp {
           </div>
           <div class="status-row">
             <span class="pill">${backendLabel(this.runtimeConfig.apiBaseUrl)}</span>
-            <span class="pill">Historia lista</span>
+            <span class="pill">${this.auth.user ? `SESION ${this.auth.user.username}` : "INVITADO"}</span>
           </div>
+        </div>
+        <div class="menu-auth-footer">
+          <div class="menu-footer-profile">
+            <div class="menu-auth-copy">
+              <span class="eyebrow">${this.auth.user ? "Perfil online" : "Invitado"}</span>
+              <strong>${this.auth.user ? this.auth.user.username : "Los puntos de honor se ganan solo online"}</strong>
+            </div>
+            <div class="pill-row menu-footer-pills">
+              <span class="pill accent">HONOR ${honorPoints}</span>
+              <span class="pill">LVL ${currentLevel}</span>
+              <span class="pill">${this.auth.user ? "Solo online" : "Sin sesion"}</span>
+            </div>
+          </div>
+          ${
+            showGuestAccess
+              ? `
+                <div class="menu-auth-actions">
+                  ${button("Iniciar sesion", "open-login", "ghost")}
+                  ${button("Registrarse", "open-register")}
+                </div>
+              `
+              : `
+                <div class="menu-footer-session">
+                  <span class="pill">${this.auth.user?.email || "Cuenta activa"}</span>
+                  <span class="pill">${this.auth.user?.wins || 0}V / ${this.auth.user?.losses || 0}D</span>
+                </div>
+              `
+          }
         </div>
       </section>
     `;
     this.bindActions({
-      "toggle-sound": () => this.toggleSound(),
       quick: () => this.go("quick"),
       story: () => this.go("story"),
       online: () => {
@@ -251,9 +422,11 @@ export class SamuraiArenaWebApp {
           this.toast("Termina la mision 1 para desbloquear Online.");
           return;
         }
-        this.go("online");
+        this.go("online", { onlineStep: "clan-entry" });
       },
       options: () => this.go("options"),
+      "open-login": () => this.go("online", { authMode: "login", rememberAuth: true, onlineStep: "clan-entry" }),
+      "open-register": () => this.go("online", { authMode: "register", rememberAuth: true, onlineStep: "clan-entry" }),
     });
   }
 
@@ -269,7 +442,6 @@ export class SamuraiArenaWebApp {
         <div class="scene-header">
           <h2>Juego rapido</h2>
           <div class="inline-actions">
-            ${this.renderSoundToggle()}
             ${button("Volver", "back", "ghost")}
           </div>
         </div>
@@ -326,7 +498,6 @@ export class SamuraiArenaWebApp {
       </section>
     `;
     this.bindActions({
-      "toggle-sound": () => this.toggleSound(),
       back: () => this.go("menu"),
       "pick-fighter": (event) =>
         this.go("quick", { fighterId: event.currentTarget.dataset.value, enemyId: selectedEnemy, arenaId: selectedArena }),
@@ -352,7 +523,6 @@ export class SamuraiArenaWebApp {
         <div class="scene-header">
           <h2>Modo historia</h2>
           <div class="inline-actions">
-            ${this.renderSoundToggle()}
             ${button("Volver", "back", "ghost")}
           </div>
         </div>
@@ -393,10 +563,12 @@ export class SamuraiArenaWebApp {
     `;
     this.stage.querySelectorAll('[data-action="play-mission"]').forEach((node, index) => {
       if (node.classList.contains("disabled")) return;
-      node.addEventListener("click", () => this.startStoryMission(this.data.missions[index]));
+      node.addEventListener("click", () => {
+        this.audio?.playEffect("uiTap");
+        this.startStoryMission(this.data.missions[index]);
+      });
     });
     this.bindActions({
-      "toggle-sound": () => this.toggleSound(),
       back: () => this.go("menu"),
       "continue-story": () => this.startStoryMission(this.data.missions[Math.max(0, unlockedMission - 1)]),
       "jump-first-fight": () => this.launchFirstFight(),
@@ -406,8 +578,10 @@ export class SamuraiArenaWebApp {
   async renderOnlineMenu() {
     const renderId = this.renderVersion;
     const background = this.themeUrl("menu_online_bg.png");
+    const onlineStep = this.sceneParams.onlineStep || "setup";
     const rankingRange = this.sceneParams.rankingRange || "global";
     const rankingView = this.sceneParams.rankingView || "general";
+    const { authMode, rememberAuth } = this.authSceneState();
     const clans = this.data.clans;
     const weapons = this.data.onlineWeapons;
     const activeUsername = (this.onlineProfile.username || this.auth.user?.username || "").trim();
@@ -420,60 +594,122 @@ export class SamuraiArenaWebApp {
           <div class="auth-card">
             <div class="scene-header tight">
               <h2>Modo online</h2>
-              ${this.renderSoundToggle()}
             </div>
             <p>Necesitas una cuenta para crear o unirte a una sala Socket.IO.</p>
-            <form id="login-form" class="stack-form">
-              <input name="identity" placeholder="Usuario o email" value="${this.onlineProfile.username || ""}" />
-              <input name="password" type="password" placeholder="Contrasena" />
-              <div class="form-actions">
-                ${button("Entrar", "login")}
-                ${button("Volver", "back", "ghost")}
-              </div>
-            </form>
-            <div class="divider"></div>
-            <form id="register-form" class="stack-form">
-              <input name="username" placeholder="Usuario" value="${this.onlineProfile.username || ""}" />
-              <input name="email" type="email" placeholder="Email" />
-              <input name="password" type="password" placeholder="Contrasena" />
-              ${button("Crear cuenta", "register")}
-            </form>
+            <div class="auth-switch-row">
+              <button type="button" class="pill-button ${authMode === "login" ? "active" : ""}" data-action="show-login">Iniciar sesion</button>
+              <button type="button" class="pill-button ${authMode === "register" ? "active" : ""}" data-action="show-register">Registrarse</button>
+            </div>
+            ${
+              authMode === "login"
+                ? `
+                  <form id="login-form" class="stack-form">
+                    <input name="identity" autocomplete="username" placeholder="Usuario o mail" value="${this.onlineProfile.username || ""}" />
+                    <input name="password" type="password" autocomplete="current-password" placeholder="Contrasena" />
+                    <div class="auth-remember-row">
+                      <button type="button" class="pill-button ${rememberAuth ? "active" : ""}" data-action="toggle-remember">Recordar contrasena ${rememberAuth ? "SI" : "NO"}</button>
+                      <span class="helper compact">Guarda el acceso en este dispositivo.</span>
+                    </div>
+                    <div class="form-actions">
+                      ${button("Entrar", "login")}
+                      ${button("Volver", "back", "ghost")}
+                    </div>
+                  </form>
+                `
+                : `
+                  <form id="register-form" class="stack-form">
+                    <input name="username" autocomplete="username" placeholder="Nombre de usuario" value="${this.onlineProfile.username || ""}" />
+                    <input name="email" type="email" autocomplete="email" placeholder="Mail" />
+                    <input name="password" type="password" autocomplete="new-password" inputmode="numeric" minlength="8" maxlength="8" pattern="[0-9]{8}" placeholder="Contrasena (8 digitos)" />
+                    <div class="auth-remember-row">
+                      <button type="button" class="pill-button ${rememberAuth ? "active" : ""}" data-action="toggle-remember">Recordar contrasena ${rememberAuth ? "SI" : "NO"}</button>
+                      <span class="helper compact">Se mantiene la sesion en este equipo.</span>
+                    </div>
+                    <div class="form-actions">
+                      ${button("Crear cuenta", "register")}
+                      ${button("Volver", "back", "ghost")}
+                    </div>
+                  </form>
+                `
+            }
           </div>
         </section>
       `;
-      this.stage.querySelector('[data-action="login"]').addEventListener("click", async (event) => {
+      this.stage.querySelector('[data-action="login"]')?.addEventListener("click", async (event) => {
         event.preventDefault();
+        this.audio?.playEffect("uiTap");
         const form = this.stage.querySelector("#login-form");
-        const payload = new FormData(form);
-        try {
-          const result = await this.api.login(payload.get("identity"), payload.get("password"));
-          this.auth = result;
-          saveAuth(this.auth);
-          this.onlineProfile.username = result.user.username;
-          saveOnlineProfile(this.onlineProfile);
-          this.go("online");
-        } catch (error) {
-          this.toast(error.message);
-        }
+        if (!form) return;
+        const ok = await this.submitAuthLogin(form, rememberAuth);
+        if (ok) this.go("online", { onlineStep: "clan-entry" });
       });
-      this.stage.querySelector('[data-action="register"]').addEventListener("click", async (event) => {
+      this.stage.querySelector('[data-action="register"]')?.addEventListener("click", async (event) => {
         event.preventDefault();
+        this.audio?.playEffect("uiTap");
         const form = this.stage.querySelector("#register-form");
-        const payload = new FormData(form);
-        try {
-          const result = await this.api.register(payload.get("username"), payload.get("email"), payload.get("password"));
-          this.auth = result;
-          saveAuth(this.auth);
-          this.onlineProfile.username = result.user.username;
-          saveOnlineProfile(this.onlineProfile);
-          this.go("online");
-        } catch (error) {
-          this.toast(error.message);
-        }
+        if (!form) return;
+        const ok = await this.submitAuthRegister(form, rememberAuth);
+        if (ok) this.go("online", { onlineStep: "clan-entry" });
       });
       this.bindActions({
-        "toggle-sound": () => this.toggleSound(),
         back: () => this.go("menu"),
+        "show-login": () => this.go("online", { authMode: "login", rememberAuth, onlineStep: "clan-entry" }),
+        "show-register": () => this.go("online", { authMode: "register", rememberAuth, onlineStep: "clan-entry" }),
+        "toggle-remember": () => this.go("online", { authMode, rememberAuth: !rememberAuth, onlineStep: "clan-entry" }),
+      });
+      return;
+    }
+
+    if (onlineStep === "clan-entry") {
+      this.stage.innerHTML = `
+        <section class="scene card-scene scene-backdrop" style="--scene-image: url('${background}')">
+          <div class="scene-overlay"></div>
+          <div class="scene-header">
+            <div>
+              <h2>Online</h2>
+              <p class="helper">Elegi uno de los 4 clanes para entrar al modo online.</p>
+            </div>
+            <div class="inline-actions">
+              ${button("Cerrar sesion", "logout", "ghost")}
+              ${button("Volver", "back", "ghost")}
+            </div>
+          </div>
+          <div class="card online-entry-card">
+            <div class="clan-entry-grid">
+              ${clans
+                .map(
+                  (clan) => `
+                    <button type="button" class="select-card clan-entry-card ${clan.id === activeClanId ? "active" : ""}" data-action="choose-online-clan" data-value="${clan.id}">
+                      <img src="${clan.portrait}" alt="${clan.name}" />
+                      <div class="clan-entry-copy">
+                        <span class="eyebrow">Clan</span>
+                        <strong>${clan.name}</strong>
+                        <span>Entrar con este guerrero</span>
+                      </div>
+                    </button>
+                  `,
+                )
+                .join("")}
+            </div>
+          </div>
+        </section>
+      `;
+      this.bindActions({
+        back: () => this.go("menu"),
+        logout: () => {
+          clearAuth();
+          this.auth = loadAuth();
+          this.rememberAuth = false;
+          this.realtime.disconnect();
+          this.go("menu");
+        },
+        "choose-online-clan": (event) => {
+          this.onlineProfile.clan_id = event.currentTarget.dataset.value;
+          const clan = clans.find((item) => item.id === this.onlineProfile.clan_id);
+          this.onlineProfile.color = clan?.color || [170, 48, 52];
+          saveOnlineProfile(this.onlineProfile);
+          this.go("online", { onlineStep: "setup", rankingRange, rankingView });
+        },
       });
       return;
     }
@@ -563,7 +799,6 @@ export class SamuraiArenaWebApp {
         <div class="scene-header">
           <h2>Online</h2>
           <div class="inline-actions">
-            ${this.renderSoundToggle()}
             ${button("Cerrar sesion", "logout", "ghost")}
             ${button("Volver", "back", "ghost")}
           </div>
@@ -573,19 +808,6 @@ export class SamuraiArenaWebApp {
             <h3>Tu combatiente online</h3>
             <label>Alias</label>
             <input id="online-username" value="${this.onlineProfile.username || this.auth.user?.username || ""}" />
-            <label>Clan</label>
-            <div class="selector-list compact">
-              ${clans
-                .map(
-                  (clan) => `
-                    <button type="button" class="select-card ${clan.id === this.onlineProfile.clan_id ? "active" : ""}" data-action="pick-clan" data-value="${clan.id}">
-                      <img src="${clan.portrait}" alt="${clan.name}" />
-                      <span>${clan.name}</span>
-                    </button>
-                  `,
-                )
-                .join("")}
-            </div>
             <label>Arma</label>
             <div class="weapon-grid">
               ${weapons
@@ -604,6 +826,9 @@ export class SamuraiArenaWebApp {
                 <span class="eyebrow">Combatiente activo</span>
                 <h3>${selectedClan?.name || "Clan"}</h3>
                 <p>${selectedWeapon?.name || "Katana"} - ${this.auth.user ? this.auth.user.username : this.onlineProfile.username || "guerrero"}</p>
+                <div class="inline-actions">
+                  ${button("Cambiar clan", "change-clan", "ghost")}
+                </div>
               </div>
             </div>
             <label>Codigo sala</label>
@@ -642,28 +867,22 @@ export class SamuraiArenaWebApp {
       </section>
     `;
     this.bindActions({
-      "toggle-sound": () => this.toggleSound(),
       back: () => this.go("menu"),
       logout: () => {
         clearAuth();
         this.auth = loadAuth();
+        this.rememberAuth = false;
         this.realtime.disconnect();
         this.go("menu");
       },
-      "pick-clan": (event) => {
-        this.onlineProfile.clan_id = event.currentTarget.dataset.value;
-        const clan = clans.find((item) => item.id === this.onlineProfile.clan_id);
-        this.onlineProfile.color = clan?.color || [170, 48, 52];
-        saveOnlineProfile(this.onlineProfile);
-        this.go("online", { rankingRange, rankingView });
-      },
+      "change-clan": () => this.go("online", { onlineStep: "clan-entry", rankingRange, rankingView }),
       "pick-weapon": (event) => {
         this.onlineProfile.weapon_id = event.currentTarget.dataset.value;
         saveOnlineProfile(this.onlineProfile);
-        this.go("online", { rankingRange, rankingView });
+        this.go("online", { onlineStep: "setup", rankingRange, rankingView });
       },
-      "set-ranking-range": (event) => this.go("online", { rankingRange: event.currentTarget.dataset.value, rankingView }),
-      "set-ranking-view": (event) => this.go("online", { rankingRange, rankingView: event.currentTarget.dataset.value }),
+      "set-ranking-range": (event) => this.go("online", { onlineStep: "setup", rankingRange: event.currentTarget.dataset.value, rankingView }),
+      "set-ranking-view": (event) => this.go("online", { onlineStep: "setup", rankingRange, rankingView: event.currentTarget.dataset.value }),
       "create-room": () => this.createRoom(),
       "join-room": () => this.joinRoom(),
     });
@@ -676,7 +895,6 @@ export class SamuraiArenaWebApp {
         <div class="auth-card">
           <div class="scene-header tight">
             <h2>Sala ${snapshot.roomCode}</h2>
-            ${this.renderSoundToggle()}
           </div>
           <p>${statusText}</p>
           <div class="list-panel">
@@ -698,11 +916,10 @@ export class SamuraiArenaWebApp {
       </section>
     `;
     this.bindActions({
-      "toggle-sound": () => this.toggleSound(),
       "leave-room": () => {
         this.realtime.leaveRoom();
         this.realtime.disconnect();
-        this.go("online");
+        this.go("online", { onlineStep: "setup" });
       },
     });
   }
@@ -714,27 +931,27 @@ export class SamuraiArenaWebApp {
         <div class="scene-header">
           <h2>Opciones</h2>
           <div class="inline-actions">
-            ${this.renderSoundToggle()}
             ${button("Volver", "back", "ghost")}
           </div>
         </div>
         <div class="online-grid">
           <div class="card">
-            <h3>Audio y conexion</h3>
-            <div class="audio-panel">
+            <h3>Audio</h3>
+            <div class="audio-panel audio-stack">
               <div>
-                <span class="eyebrow">SONIDO</span>
-                <p>${this.settings.musicMuted ? "El audio esta apagado." : "La musica y los efectos estan activos."}</p>
+                <span class="eyebrow">MUSICA DEL MENU</span>
+                <p>${this.settings.musicMuted ? "La musica del menu esta apagada." : "La musica del menu esta activa."}</p>
               </div>
-              ${this.renderSoundToggle("large")}
+              ${this.renderAudioToggle("toggle-music", "MUSICA", !this.settings.musicMuted, "large")}
             </div>
-            <label>Backend URL</label>
-            <input id="server-url" value="${this.settings.serverUrl || this.settings.apiBaseUrl || this.settings.socketUrl || ""}" placeholder="https://samurai-arena-fight.onrender.com" />
-            <div class="form-actions">
-              ${button("Guardar", "save-options")}
-              ${button("Pantalla completa", "fullscreen")}
+            <div class="audio-panel audio-stack">
+              <div>
+                <span class="eyebrow">EFECTOS Y GOLPES</span>
+                <p>${this.settings.fxMuted ? "Los golpes, botones y efectos estan apagados." : "Los golpes, botones y efectos estan activos."}</p>
+              </div>
+              ${this.renderAudioToggle("toggle-fx", "EFECTOS", !this.settings.fxMuted, "large")}
             </div>
-            <p class="helper">En produccion usa la URL HTTPS de Render. Si lo dejas vacio, el cliente intenta usar el mismo origen.</p>
+            <p class="helper">Los botones ahora tienen un sonido minimo y los golpes usan el canal de efectos.</p>
           </div>
           <div class="card">
             <h3>Controles</h3>
@@ -775,29 +992,9 @@ export class SamuraiArenaWebApp {
       </section>
     `;
     this.bindActions({
-      "toggle-sound": () => this.toggleSound(),
+      "toggle-music": () => this.toggleMusic(),
+      "toggle-fx": () => this.toggleFx(),
       back: () => this.go("menu"),
-      "save-options": () => {
-        const serverUrl = this.stage.querySelector("#server-url").value.trim();
-        this.settings.serverUrl = serverUrl;
-        this.settings.apiBaseUrl = serverUrl;
-        this.settings.socketUrl = serverUrl;
-        this.syncSettings();
-        this.toast("Opciones guardadas.");
-        this.go("options");
-      },
-      fullscreen: async () => {
-        try {
-          if (!document.fullscreenElement) {
-            await document.documentElement.requestFullscreen();
-          }
-          if (screen.orientation?.lock) {
-            await screen.orientation.lock("landscape");
-          }
-        } catch (_error) {
-          this.toast("La pantalla completa depende del navegador o del WebView.");
-        }
-      },
     });
   }
 
@@ -937,7 +1134,7 @@ export class SamuraiArenaWebApp {
 
     if (this.auth.token) {
       try {
-        await this.api.updateProgress(
+        const payload = await this.api.updateProgress(
           {
             first_time_completed: this.progress.first_time_completed,
             story_act: this.progress.story_act,
@@ -946,6 +1143,12 @@ export class SamuraiArenaWebApp {
           },
           this.onlineProfile,
         );
+        if (payload?.user) {
+          this.auth.user = payload.user;
+          if (this.rememberAuth) {
+            saveAuth(this.auth);
+          }
+        }
       } catch (_error) {}
     }
 
@@ -1000,7 +1203,6 @@ export class SamuraiArenaWebApp {
           <div class="cutscene-panel">
             <div class="scene-header tight">
               <span class="eyebrow">${panel.speaker}</span>
-              ${this.renderSoundToggle()}
             </div>
             <p>${panel.text}</p>
             <div class="form-actions">
@@ -1011,7 +1213,6 @@ export class SamuraiArenaWebApp {
         </section>
       `;
       this.bindActions({
-        "toggle-sound": () => this.toggleSound(),
         "next-panel": () => {
           index += 1;
           renderPanel();
@@ -1083,7 +1284,10 @@ export class SamuraiArenaWebApp {
   bindActions(handlers) {
     Object.entries(handlers).forEach(([action, handler]) => {
       this.stage.querySelectorAll(`[data-action="${action}"]`).forEach((node) => {
-        node.addEventListener("click", handler);
+        node.addEventListener("click", (event) => {
+          this.audio?.playEffect("uiTap");
+          handler(event);
+        });
       });
     });
   }

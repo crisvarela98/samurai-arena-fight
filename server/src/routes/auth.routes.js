@@ -3,7 +3,7 @@ const jwt = require("jsonwebtoken");
 const router = require("express").Router();
 
 const { authMiddleware } = require("../middleware/auth.middleware");
-const { createUser, findUserById, findUserByIdentity, publicUser } = require("../services/user.service");
+const { createUser, databaseReady, findUserById, findUserByIdentity, publicUser } = require("../services/user.service");
 
 const JWT_SECRET = process.env.JWT_SECRET || "secret_de_desarrollo";
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "7d";
@@ -15,11 +15,17 @@ function issueToken(user) {
 
 router.post("/register", async (req, res) => {
   try {
-    const username = String(req.body.username || "").trim();
+    if (!databaseReady()) {
+      return res.status(503).json({ message: "MongoDB no esta disponible. Configura MONGODB_URI para registrar usuarios." });
+    }
+    const username = String(req.body.username || "").trim().toLowerCase();
     const email = String(req.body.email || "").trim().toLowerCase();
     const password = String(req.body.password || "");
-    if (username.length < 3 || !email.includes("@") || password.length < 6) {
-      return res.status(400).json({ message: "Usuario, email o contrasena invalidos" });
+    if (username.length < 3 || !email.includes("@")) {
+      return res.status(400).json({ message: "Usuario o email invalidos" });
+    }
+    if (!/^\d{8}$/.test(password)) {
+      return res.status(400).json({ message: "La contrasena debe tener 8 digitos" });
     }
     if (await findUserByIdentity(username) || await findUserByIdentity(email)) {
       return res.status(409).json({ message: "El usuario o email ya existe" });
@@ -28,12 +34,18 @@ router.post("/register", async (req, res) => {
     const user = await createUser({ username, email, passwordHash });
     return res.status(201).json({ token: issueToken(user), user: publicUser(user) });
   } catch (error) {
+    if (error?.code === 11000) {
+      return res.status(409).json({ message: "El usuario o email ya existe" });
+    }
     return res.status(500).json({ message: "No se pudo registrar la cuenta", detail: error.message });
   }
 });
 
 router.post("/login", async (req, res) => {
   try {
+    if (!databaseReady()) {
+      return res.status(503).json({ message: "MongoDB no esta disponible. No se puede iniciar sesion." });
+    }
     const identity = String(req.body.identity || req.body.email || req.body.username || "").trim();
     const password = String(req.body.password || "");
     const user = await findUserByIdentity(identity);
@@ -47,6 +59,9 @@ router.post("/login", async (req, res) => {
 });
 
 router.get("/me", authMiddleware, async (req, res) => {
+  if (!databaseReady()) {
+    return res.status(503).json({ message: "MongoDB no esta disponible. No se puede cargar la sesion." });
+  }
   const user = await findUserById(req.auth.sub);
   if (!user) return res.status(404).json({ message: "Usuario no encontrado" });
   return res.json({ user: publicUser(user) });
