@@ -49,12 +49,30 @@ export class ApiClient {
     return this.request("/api/rooms");
   }
 
-  ranking() {
-    return this.request("/api/ranking");
+  ranking(range = "global") {
+    const params = new URLSearchParams({
+      range,
+      tzOffsetMinutes: String(new Date().getTimezoneOffset()),
+    });
+    return this.request(`/api/ranking?${params.toString()}`);
   }
 
-  clanRanking() {
-    return this.request("/api/ranking/clans");
+  clanRanking(range = "global") {
+    const params = new URLSearchParams({
+      range,
+      tzOffsetMinutes: String(new Date().getTimezoneOffset()),
+    });
+    return this.request(`/api/ranking/clans?${params.toString()}`);
+  }
+
+  rankingSummary(range = "global", username = "", clan = "") {
+    const params = new URLSearchParams({
+      range,
+      tzOffsetMinutes: String(new Date().getTimezoneOffset()),
+      username,
+      clan,
+    });
+    return this.request(`/api/ranking/summary?${params.toString()}`);
   }
 
   updateProgress(storyProgress, profile) {

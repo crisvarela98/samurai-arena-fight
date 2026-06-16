@@ -66,6 +66,8 @@ class AudioManager:
             "attack_light": "hit_light",
             "attack_heavy": "hit_heavy",
             "kick": "hit_kick",
+            "low_kick": "hit_kick",
+            "flying_kick": "hit_kick",
         }
         self.play_sound(key_map.get(attack_type, "hit_light"))
 

@@ -175,13 +175,19 @@ class NetworkClient:
         response.raise_for_status()
         return response.json()
 
-    def fetch_ranking(self, timeout=3.0):
-        response = requests.get(self.rest_url("/api/ranking"), headers=self._auth_headers(), timeout=timeout)
+    def fetch_ranking(self, timeout=3.0, range_name="global", tz_offset_minutes=None):
+        params = {"range": range_name}
+        if tz_offset_minutes is not None:
+            params["tzOffsetMinutes"] = int(tz_offset_minutes)
+        response = requests.get(self.rest_url("/api/ranking"), headers=self._auth_headers(), params=params, timeout=timeout)
         response.raise_for_status()
         return response.json()
 
-    def fetch_clan_ranking(self, timeout=3.0):
-        response = requests.get(self.rest_url("/api/ranking/clans"), headers=self._auth_headers(), timeout=timeout)
+    def fetch_clan_ranking(self, timeout=3.0, range_name="global", tz_offset_minutes=None):
+        params = {"range": range_name}
+        if tz_offset_minutes is not None:
+            params["tzOffsetMinutes"] = int(tz_offset_minutes)
+        response = requests.get(self.rest_url("/api/ranking/clans"), headers=self._auth_headers(), params=params, timeout=timeout)
         response.raise_for_status()
         return response.json()
 

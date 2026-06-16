@@ -39,7 +39,7 @@ class CharacterSelectScene(BaseScene):
             self.cards.append((fighter, Button(rect, fighter["name"], font_size=26, variant="ghost")))
             self.preview_frames[fighter["id"]] = self.game.assets.load_sprite_strip(
                 fighter["sprite_sheet"],
-                7,
+                max(1, int(fighter.get("frame_count", 7) or 7)),
                 scale_height=140,
                 chroma_key=(0, 255, 0),
                 chroma_tolerance=110,

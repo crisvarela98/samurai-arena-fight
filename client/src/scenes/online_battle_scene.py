@@ -129,6 +129,7 @@ class OnlineBattleScene(BattleScene):
             "fighterName": profile.get("fighter_name", preset.get("fighter_name", "Guerrero Online")),
             "spriteSheet": profile.get("sprite_sheet", preset.get("sprite_sheet", "")),
             "portrait": profile.get("portrait", preset.get("portrait", "")),
+            "frameCount": int(profile.get("frame_count", preset.get("frame_count", 7)) or 7),
             "weapon": profile.get("weapon"),
             "health": max_health,
             "stamina": max_stamina,
@@ -154,6 +155,7 @@ class OnlineBattleScene(BattleScene):
             "weapon_id": weapon["id"],
             "sprite_sheet": meta.get("spriteSheet") or preset.get("sprite_sheet", ""),
             "portrait": meta.get("portrait") or preset.get("portrait", ""),
+            "frame_count": int(meta.get("frameCount", preset.get("frame_count", 7)) or 7),
         }
         return fighter, weapon
 
@@ -204,7 +206,15 @@ class OnlineBattleScene(BattleScene):
         if self._intro_active():
             return
         attack_type = data.get("attackType")
+        if attack_type in {"lowKick", "kick_low"}:
+            attack_type = "low_kick"
+        elif attack_type in {"flyingKick", "kick_flying"}:
+            attack_type = "flying_kick"
         if attack_type in ATTACKS:
+            if attack_type == "low_kick":
+                self.enemy.crouching = True
+            elif attack_type == "flying_kick":
+                self.enemy.on_ground = False
             self.enemy.start_attack(attack_type)
 
     def _on_opponent_block(self, data):
@@ -352,8 +362,9 @@ class OnlineBattleScene(BattleScene):
                     if self.player.start_attack("attack_heavy"):
                         self.net.send_attack("attack_heavy")
                 elif action == "kick" and pressed:
-                    if self.player.start_attack("kick"):
-                        self.net.send_attack("kick")
+                    attack_name = self._resolve_kick_attack(self.player, self.game.input.is_down("down"))
+                    if self.player.start_attack(attack_name):
+                        self.net.send_attack(attack_name)
                 elif action == "dodge" and pressed:
                     if self.player.dodge():
                         self.net.send_dodge()
@@ -388,8 +399,10 @@ class OnlineBattleScene(BattleScene):
             self.net.send_attack("attack_light")
         if self.game.input.was_pressed("heavy") and self.player.start_attack("attack_heavy"):
             self.net.send_attack("attack_heavy")
-        if self.game.input.was_pressed("kick") and self.player.start_attack("kick"):
-            self.net.send_attack("kick")
+        if self.game.input.was_pressed("kick"):
+            attack_name = self._resolve_kick_attack(self.player)
+            if self.player.start_attack(attack_name):
+                self.net.send_attack(attack_name)
 
         block_active = self.game.input.is_down("block")
         self.player.block(block_active)

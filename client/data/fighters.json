@@ -8,8 +8,9 @@
     "attack_power": 18,
     "defense": 8,
     "weapon_id": "katana",
-    "sprite_sheet": "assets/fighters/kenji_sheet_v2.png",
-    "portrait": "assets/fighters/portraits/kenji_portrait.png"
+    "sprite_sheet": "assets/fighters/kenji_sheet_v3.png",
+    "portrait": "assets/fighters/portraits/kenji_portrait.png",
+    "frame_count": 10
   },
   {
     "id": "hayato",
@@ -20,7 +21,8 @@
     "attack_power": 22,
     "defense": 10,
     "weapon_id": "axe",
-    "sprite_sheet": "assets/fighters/hayato_sheet_v2.png",
-    "portrait": "assets/fighters/portraits/hayato_portrait.png"
+    "sprite_sheet": "assets/fighters/hayato_sheet_v3.png",
+    "portrait": "assets/fighters/portraits/hayato_portrait.png",
+    "frame_count": 10
   }
 ]

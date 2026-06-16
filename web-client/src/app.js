@@ -23,6 +23,24 @@ function button(label, action, variant = "") {
   return `<button type="button" class="menu-btn ${variant}" data-action="${action}">${label}</button>`;
 }
 
+function rankingFilterButton(label, value, activeValue) {
+  return `<button type="button" class="rank-filter ${value === activeValue ? "active" : ""}" data-action="set-ranking-range" data-value="${value}">${label}</button>`;
+}
+
+function rankingViewButton(label, value, activeValue) {
+  return `<button type="button" class="rank-view-tab ${value === activeValue ? "active" : ""}" data-action="set-ranking-view" data-value="${value}">${label}</button>`;
+}
+
+function backendLabel(url) {
+  if (!url) return "BACKEND AUTO";
+  try {
+    const parsed = new URL(url);
+    return parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1" ? "BACKEND LOCAL" : `API ${parsed.hostname}`;
+  } catch (_error) {
+    return `API ${url}`;
+  }
+}
+
 export class SamuraiArenaWebApp {
   constructor(root, data) {
     this.root = root;
@@ -39,7 +57,7 @@ export class SamuraiArenaWebApp {
     this.sceneParams = {};
     this.battle = null;
     this.roomSnapshot = null;
-    this.onlineLists = { rooms: [], ranking: [], clanRanking: [] };
+    this.onlineLists = { rooms: [], ranking: [], clanRanking: [], rankingSummary: null };
     this.renderVersion = 0;
     this.bindRealtime();
   }
@@ -88,6 +106,25 @@ export class SamuraiArenaWebApp {
 
   renderSoundToggle(size = "") {
     return `<button type="button" class="sound-toggle ${size}" data-action="toggle-sound"><span class="sound-indicator ${this.settings.musicMuted ? "off" : "on"}"></span>${this.settings.musicMuted ? "AUDIO OFF" : "AUDIO ON"}</button>`;
+  }
+
+  rankingRangeMeta(range) {
+    if (range === "today") {
+      return {
+        title: "Hoy",
+        subtitle: "Resultados del dia segun la zona horaria del dispositivo.",
+      };
+    }
+    if (range === "week") {
+      return {
+        title: "Semana",
+        subtitle: "Ultimos 7 dias de actividad online.",
+      };
+    }
+    return {
+      title: "Global",
+      subtitle: "Tabla historica acumulada de todo el juego.",
+    };
   }
 
   syncSettings() {
@@ -199,8 +236,8 @@ export class SamuraiArenaWebApp {
             ${button("Opciones", "options")}
           </div>
           <div class="status-row">
-            <span class="pill">API ${this.runtimeConfig.apiBaseUrl}</span>
-            <span class="pill">Historia -> primera pelea</span>
+            <span class="pill">${backendLabel(this.runtimeConfig.apiBaseUrl)}</span>
+            <span class="pill">Historia lista</span>
           </div>
         </div>
       </section>
@@ -369,6 +406,12 @@ export class SamuraiArenaWebApp {
   async renderOnlineMenu() {
     const renderId = this.renderVersion;
     const background = this.themeUrl("menu_online_bg.png");
+    const rankingRange = this.sceneParams.rankingRange || "global";
+    const rankingView = this.sceneParams.rankingView || "general";
+    const clans = this.data.clans;
+    const weapons = this.data.onlineWeapons;
+    const activeUsername = (this.onlineProfile.username || this.auth.user?.username || "").trim();
+    const activeClanId = this.onlineProfile.clan_id || clans[0]?.id || "cuervo_negro";
 
     if (!this.auth.token) {
       this.stage.innerHTML = `
@@ -436,16 +479,84 @@ export class SamuraiArenaWebApp {
     }
 
     try {
-      const [rooms, ranking, clanRanking] = await Promise.all([this.api.rooms(), this.api.ranking(), this.api.clanRanking()]);
+      const [rooms, ranking, clanRanking, rankingSummary] = await Promise.all([
+        this.api.rooms(),
+        this.api.ranking(rankingRange),
+        this.api.clanRanking(rankingRange),
+        this.api.rankingSummary(rankingRange, activeUsername, activeClanId),
+      ]);
       if (renderId !== this.renderVersion || this.scene !== "online") return;
-      this.onlineLists = { rooms, ranking, clanRanking };
+      this.onlineLists = { rooms, ranking, clanRanking, rankingSummary };
     } catch (_error) {
-      this.onlineLists = { rooms: [], ranking: [], clanRanking: [] };
+      this.onlineLists = { rooms: [], ranking: [], clanRanking: [], rankingSummary: null };
     }
 
-    const clans = this.data.clans;
-    const weapons = this.data.onlineWeapons;
     const clanById = Object.fromEntries(clans.map((clan) => [clan.id, clan]));
+    const selectedClan = clanById[this.onlineProfile.clan_id] || clans[0];
+    const selectedWeapon = weapons.find((weapon) => weapon.id === this.onlineProfile.weapon_id) || weapons[0];
+    const rangeMeta = this.rankingRangeMeta(rankingRange);
+    const rankingSummary = this.onlineLists.rankingSummary || {};
+    const summaryPlayer = rankingSummary.player || null;
+    const summaryClan = rankingSummary.clan || null;
+    const emptyPeriodText =
+      rankingRange === "global"
+        ? "Juga al menos una pelea online para aparecer en el ranking."
+        : "Todavia no hay actividad suficiente en este periodo.";
+    const activeUsernameKey = activeUsername.toLowerCase();
+    const generalRankingMarkup = this.onlineLists.ranking.length
+      ? this.onlineLists.ranking
+          .map((row, index) => {
+            const clan = clanById[row.clan];
+            const clanName = clan?.name || row.clan || "Clan";
+            const isCurrentPlayer = String(row.username || "").toLowerCase() === activeUsernameKey;
+            return `<div class="list-row rank-row ${isCurrentPlayer ? "focus" : ""}"><span>#${index + 1} ${row.username}${isCurrentPlayer ? " · vos" : ""}</span><span>${row.points} pts · ${row.wins || 0}V/${row.losses || 0}D · ${clanName}</span></div>`;
+          })
+          .join("")
+      : "<div class='list-row'>Sin ranking general disponible.</div>";
+    const clanRankingMarkup = this.onlineLists.clanRanking.length
+      ? this.onlineLists.clanRanking
+          .map((row, index) => {
+            const clan = clanById[row.clan];
+            const clanName = clan?.name || row.clan || "Clan";
+            const isSelectedClan = row.clan === selectedClan?.id;
+            return `<div class="list-row rank-row ${isSelectedClan ? "focus" : ""}"><span>#${index + 1} ${clanName}${isSelectedClan ? " · mi clan" : ""}</span><span>${row.points} pts · ${row.wins}V/${row.losses}D · ${row.members} jugadores</span></div>`;
+          })
+          .join("")
+      : "<div class='list-row'>Sin ranking por clan disponible.</div>";
+    const myClanMarkup = `
+      <div class="focus-grid">
+        <article class="focus-card">
+          <span class="eyebrow">TU POSICION GENERAL</span>
+          <h3>${summaryPlayer?.username || activeUsername || "Jugador actual"}</h3>
+          <div class="focus-rank">${summaryPlayer?.position ? `#${summaryPlayer.position}` : "--"}</div>
+          <p>${summaryPlayer?.position ? `Puesto ${summaryPlayer.position} de ${summaryPlayer.totalPlayers || 0} jugadores.` : emptyPeriodText}</p>
+          <div class="pill-row">
+            <span class="pill accent">${summaryPlayer?.points || 0} pts</span>
+            <span class="pill">${summaryPlayer?.wins || 0}V / ${summaryPlayer?.losses || 0}D</span>
+          </div>
+        </article>
+        <article class="focus-card">
+          <span class="eyebrow">POSICION DEL CLAN</span>
+          <h3>${selectedClan?.name || "Clan"}</h3>
+          <div class="focus-rank">${summaryClan?.position ? `#${summaryClan.position}` : "--"}</div>
+          <p>${summaryClan?.position ? `Puesto ${summaryClan.position} de ${summaryClan.totalClans || 0} clanes.` : emptyPeriodText}</p>
+          <div class="pill-row">
+            <span class="pill accent">${summaryClan?.points || 0} pts</span>
+            <span class="pill">${summaryClan?.wins || 0}V / ${summaryClan?.losses || 0}D · ${summaryClan?.members || 0} miembros</span>
+          </div>
+        </article>
+      </div>
+      <div class="list-panel compact-list">
+        <div class="list-row focus-inline-row">
+          <span>Rango activo</span>
+          <strong>${rangeMeta.title}</strong>
+        </div>
+        <div class="list-row focus-inline-row">
+          <span>Alias activo</span>
+          <strong>${activeUsername || "Jugador actual"}</strong>
+        </div>
+      </div>
+    `;
     this.stage.innerHTML = `
       <section class="scene online-scene scene-backdrop" style="--scene-image: url('${background}')">
         <div class="scene-overlay"></div>
@@ -487,6 +598,14 @@ export class SamuraiArenaWebApp {
                 )
                 .join("")}
             </div>
+            <div class="online-preview-card">
+              <img src="${selectedClan?.portrait || ""}" alt="${selectedClan?.name || "Clan"}" />
+              <div class="online-preview-copy">
+                <span class="eyebrow">Combatiente activo</span>
+                <h3>${selectedClan?.name || "Clan"}</h3>
+                <p>${selectedWeapon?.name || "Katana"} - ${this.auth.user ? this.auth.user.username : this.onlineProfile.username || "guerrero"}</p>
+              </div>
+            </div>
             <label>Codigo sala</label>
             <input id="room-code" placeholder="ABCD12" />
             <div class="form-actions">
@@ -494,27 +613,30 @@ export class SamuraiArenaWebApp {
               ${button("Unirme", "join-room")}
             </div>
           </div>
-          <div class="card">
+          <div class="card ranking-card">
             <h3>Salas</h3>
             <div class="list-panel">
               ${this.onlineLists.rooms.length ? this.onlineLists.rooms.map((room) => `<div class="list-row">${room.roomCode} - ${room.status}</div>`).join("") : "<div class='list-row'>No hay salas publicas visibles.</div>"}
             </div>
-            <h3>Ranking general</h3>
-            <div class="list-panel">
-              ${this.onlineLists.ranking.length ? this.onlineLists.ranking.map((row, index) => {
-                const clan = clanById[row.clan];
-                const clanName = clan?.name || row.clan || "Clan";
-                return `<div class="list-row">#${index + 1} ${row.username} - ${row.points} pts - ${clanName}</div>`;
-              }).join("") : "<div class='list-row'>Sin ranking general disponible.</div>"}
+            <div class="ranking-toolbar">
+              <div>
+                <h3>Rankings online</h3>
+                <p class="helper">${rangeMeta.subtitle}</p>
+              </div>
+              <div class="ranking-filters">
+                ${rankingFilterButton("Hoy", "today", rankingRange)}
+                ${rankingFilterButton("Semana", "week", rankingRange)}
+                ${rankingFilterButton("Global", "global", rankingRange)}
+              </div>
             </div>
-            <h3>Ranking por clan</h3>
-            <div class="list-panel">
-              ${this.onlineLists.clanRanking.length ? this.onlineLists.clanRanking.map((row, index) => {
-                const clan = clanById[row.clan];
-                const clanName = clan?.name || row.clan || "Clan";
-                return `<div class="list-row">#${index + 1} ${clanName} - ${row.points} pts - ${row.wins}V/${row.losses}D - ${row.members} jugadores</div>`;
-              }).join("") : "<div class='list-row'>Sin ranking por clan disponible.</div>"}
+            <div class="ranking-tabs">
+              ${rankingViewButton("General", "general", rankingView)}
+              ${rankingViewButton("Clanes", "clans", rankingView)}
+              ${rankingViewButton("Mi clan", "my-clan", rankingView)}
             </div>
+            ${rankingView === "general" ? `<h3>Ranking general · ${rangeMeta.title}</h3><div class="list-panel ranking-list">${generalRankingMarkup}</div>` : ""}
+            ${rankingView === "clans" ? `<h3>Ranking por clan · ${rangeMeta.title}</h3><div class="list-panel ranking-list">${clanRankingMarkup}</div>` : ""}
+            ${rankingView === "my-clan" ? `<div class="ranking-focus"><h3>Mi clan · ${rangeMeta.title}</h3>${myClanMarkup}</div>` : ""}
           </div>
         </div>
       </section>
@@ -533,13 +655,15 @@ export class SamuraiArenaWebApp {
         const clan = clans.find((item) => item.id === this.onlineProfile.clan_id);
         this.onlineProfile.color = clan?.color || [170, 48, 52];
         saveOnlineProfile(this.onlineProfile);
-        this.go("online");
+        this.go("online", { rankingRange, rankingView });
       },
       "pick-weapon": (event) => {
         this.onlineProfile.weapon_id = event.currentTarget.dataset.value;
         saveOnlineProfile(this.onlineProfile);
-        this.go("online");
+        this.go("online", { rankingRange, rankingView });
       },
+      "set-ranking-range": (event) => this.go("online", { rankingRange: event.currentTarget.dataset.value, rankingView }),
+      "set-ranking-view": (event) => this.go("online", { rankingRange, rankingView: event.currentTarget.dataset.value }),
       "create-room": () => this.createRoom(),
       "join-room": () => this.joinRoom(),
     });
@@ -622,6 +746,8 @@ export class SamuraiArenaWebApp {
                   <div class="list-row">Saltar: W</div>
                   <div class="list-row">Agacharse: S</div>
                   <div class="list-row">Golpe: J</div>
+                  <div class="list-row">S + J: patada baja</div>
+                  <div class="list-row">Aire + J: voladora</div>
                   <div class="list-row">Bloqueo: I</div>
                   <div class="list-row">Dash: L</div>
                   <div class="list-row">Especial: K</div>
@@ -635,6 +761,8 @@ export class SamuraiArenaWebApp {
                   <div class="list-row">Saltar: SALTO</div>
                   <div class="list-row">Agacharse: ABAJO</div>
                   <div class="list-row">Golpe: GOLPE</div>
+                  <div class="list-row">ABAJO + GOLPE: patada baja</div>
+                  <div class="list-row">AIRE + GOLPE: voladora</div>
                   <div class="list-row">Bloqueo: BLOQ</div>
                   <div class="list-row">Dash: DASH</div>
                   <div class="list-row">Especial: ESPECIAL</div>
@@ -716,7 +844,8 @@ export class SamuraiArenaWebApp {
             ? [
                 { text: "Movete con A/D o con IZQ y DER", duration: 2500, gap: 900 },
                 { text: "Usa SALTO y ABAJO para moverte mejor", duration: 2300, gap: 900 },
-                { text: "Golpea con GOLPE, bloquea con BLOQ y usa DASH para esquivar", duration: 3200, gap: 900 },
+                { text: "GOLPE hace patada baja agachado y voladora en el aire", duration: 3000, gap: 900 },
+                { text: "Bloquea con BLOQ y usa DASH para esquivar", duration: 2600, gap: 900 },
               ]
             : [],
         onExit: (playerWon) => this.finishStoryBattle(playerWon, mission, fightIndex),

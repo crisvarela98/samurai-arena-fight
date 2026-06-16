@@ -150,6 +150,14 @@ class BattleScene(BaseScene):
                 return label, color
         return None, LIGHT
 
+    @staticmethod
+    def _resolve_kick_attack(fighter, crouch_requested=False):
+        if not fighter.on_ground:
+            return "flying_kick"
+        if fighter.crouching or crouch_requested:
+            return "low_kick"
+        return "kick"
+
     def _draw_intro_overlay(self, surface):
         if not self._intro_active():
             return
@@ -245,7 +253,7 @@ class BattleScene(BaseScene):
                 elif action == "heavy" and pressed:
                     self.player.start_attack("attack_heavy")
                 elif action == "kick" and pressed:
-                    self.player.start_attack("kick")
+                    self.player.start_attack(self._resolve_kick_attack(self.player, self.game.input.is_down("down")))
                 elif action == "block":
                     self.player.block(pressed)
                 elif action == "dodge" and pressed:
@@ -276,18 +284,24 @@ class BattleScene(BaseScene):
         if self.game.input.was_pressed("heavy"):
             self.player.start_attack("attack_heavy")
         if self.game.input.was_pressed("kick"):
-            self.player.start_attack("kick")
+            self.player.start_attack(self._resolve_kick_attack(self.player))
         self.player.block(self.game.input.is_down("block"))
         if self.game.input.was_pressed("dodge"):
             self.player.dodge()
         ai_actions = self.ai.update(self.enemy, self.player, dt)
-        self.enemy.move((-1 if ai_actions["left"] else 1 if ai_actions["right"] else 0), dt)
+        self.enemy.crouch(ai_actions.get("down", False))
+        if self.enemy.crouching:
+            self.enemy.move(0, dt)
+        else:
+            self.enemy.move((-1 if ai_actions["left"] else 1 if ai_actions["right"] else 0), dt)
+        if ai_actions.get("up"):
+            self.enemy.jump()
         if ai_actions["light"]:
             self.enemy.start_attack("attack_light")
         if ai_actions["heavy"]:
             self.enemy.start_attack("attack_heavy")
         if ai_actions["kick"]:
-            self.enemy.start_attack("kick")
+            self.enemy.start_attack(ai_actions.get("kick_type") or self._resolve_kick_attack(self.enemy))
         if ai_actions["block"]:
             self.enemy.block(True)
         else:

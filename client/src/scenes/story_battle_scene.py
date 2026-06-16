@@ -20,7 +20,18 @@ class _StoryAI:
     def update(self, fighter, opponent, dt):
         if self.active:
             return self.controller.update(fighter, opponent, dt)
-        return {"left": False, "right": False, "light": False, "heavy": False, "kick": False, "block": False, "dodge": False}
+        return {
+            "left": False,
+            "right": False,
+            "up": False,
+            "down": False,
+            "light": False,
+            "heavy": False,
+            "kick": False,
+            "kick_type": None,
+            "block": False,
+            "dodge": False,
+        }
 
 
 class StoryBattleScene(BattleScene):

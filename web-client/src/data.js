@@ -18,6 +18,7 @@ function buildClans(onlineConfig) {
     portrait: assetUrl(value.portrait),
     portraitUrl: assetUrl(value.portrait),
     color: value.default_color || [170, 48, 52],
+    frame_count: value.frame_count || 7,
     sprite_sheet: assetUrl(value.sprite_sheet),
     spriteUrl: assetUrl(value.sprite_sheet),
   }));

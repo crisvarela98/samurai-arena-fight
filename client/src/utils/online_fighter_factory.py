@@ -43,5 +43,6 @@ def build_online_fighter(client_dir, username, clan_id, weapon_id, color):
         "fighter_name": preset.get("fighter_name", clan["name"]),
         "sprite_sheet": preset.get("sprite_sheet", ""),
         "portrait": preset.get("portrait", ""),
+        "frame_count": int(preset.get("frame_count", 7) or 7),
         "weapon": {key: weapon[key] for key in ("id", "name", "damage_light", "damage_heavy", "stamina_cost", "range", "cooldown")},
     }

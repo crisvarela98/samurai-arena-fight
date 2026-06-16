@@ -11,8 +11,9 @@ const roomState = new Map();
 const onlineCatalogPath = path.resolve(__dirname, "../../client/data/online/online_fighters.json");
 const defaultOnlinePreset = {
   fighter_name: "Sombra del Cuervo",
-  sprite_sheet: "assets/fighters/online/cuervo_negro_sheet.png",
+  sprite_sheet: "assets/fighters/online/cuervo_negro_sheet_v2.png",
   portrait: "assets/fighters/portraits/online/cuervo_negro_portrait.png",
+  frame_count: 10,
 };
 
 function loadOnlinePresets() {
@@ -61,6 +62,7 @@ function sanitizeOnlineFighter(payload = {}, accountUsername = "player") {
     range: clampNumber(fighter.range, 45, 110, 72),
     spriteSheet: String(preset.sprite_sheet || defaultOnlinePreset.sprite_sheet),
     portrait: String(preset.portrait || defaultOnlinePreset.portrait),
+    frameCount: clampNumber(preset.frame_count, 1, 32, defaultOnlinePreset.frame_count),
     weapon: fighter.weapon || null,
   };
 }
@@ -88,6 +90,7 @@ function buildPlayer(socket, payload = {}) {
     range: profile.range,
     spriteSheet: profile.spriteSheet,
     portrait: profile.portrait,
+    frameCount: profile.frameCount,
     weapon: profile.weapon,
     health: profile.maxHealth,
     stamina: profile.maxStamina,
@@ -116,6 +119,7 @@ function playersPayload(room) {
     range: player.range,
     spriteSheet: player.spriteSheet,
     portrait: player.portrait,
+    frameCount: player.frameCount || 7,
     weapon: player.weapon,
     health: player.health,
     stamina: player.stamina,

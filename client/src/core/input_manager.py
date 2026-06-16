@@ -8,7 +8,7 @@ CONTROL_BINDINGS = [
     {"key": pygame.K_s, "key_label": "S", "action": "down", "label": "Agacharse", "mobile_label": "Boton ABAJO"},
     {"key": pygame.K_j, "key_label": "J", "action": "light", "label": "Golpe basico", "mobile_label": "Boton GOLPE"},
     {"key": pygame.K_k, "key_label": "K", "action": "heavy", "label": "Super golpe", "mobile_label": "Boton SUPER"},
-    {"key": pygame.K_l, "key_label": "L", "action": "kick", "label": "Patada", "mobile_label": "Boton PATADA"},
+    {"key": pygame.K_l, "key_label": "L", "action": "kick", "label": "Patada / baja / voladora", "mobile_label": "Boton PATADA"},
     {"key": pygame.K_i, "key_label": "I", "action": "block", "label": "Bloquear", "mobile_label": "Boton BLOQUEO"},
     {"key": pygame.K_o, "key_label": "O", "action": "dodge", "label": "Esquivar", "mobile_label": "Boton ESQUIVA"},
     {"key": pygame.K_ESCAPE, "key_label": "ESC", "action": "pause", "label": "Pausa / salir", "mobile_label": "Boton PAUSA"},
@@ -16,7 +16,7 @@ CONTROL_BINDINGS = [
 
 PC_CONTROL_ROWS = [(binding["key_label"], binding["label"]) for binding in CONTROL_BINDINGS]
 MOBILE_CONTROL_ROWS = [(binding["mobile_label"], binding["label"]) for binding in CONTROL_BINDINGS]
-DESKTOP_HINT_TEXT = "A/D mover | W saltar | S agacharse | J golpe | K super | L patada | I bloqueo | O esquiva | ESC pausa"
+DESKTOP_HINT_TEXT = "A/D mover | W saltar | S agacharse | J golpe | K super | L patada | S+L baja | aire+L voladora | I bloqueo | O esquiva | ESC pausa"
 
 
 class InputManager:

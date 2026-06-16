@@ -10,26 +10,30 @@
   "clan_presets": {
     "cuervo_negro": {
       "fighter_name": "Sombra del Cuervo",
-      "sprite_sheet": "assets/fighters/online/cuervo_negro_sheet.png",
+      "sprite_sheet": "assets/fighters/online/cuervo_negro_sheet_v2.png",
       "portrait": "assets/fighters/portraits/online/cuervo_negro_portrait.png",
+      "frame_count": 10,
       "default_color": [170, 48, 52]
     },
     "tigre_hierro": {
       "fighter_name": "Martillo del Tigre",
-      "sprite_sheet": "assets/fighters/online/tigre_hierro_sheet.png",
+      "sprite_sheet": "assets/fighters/online/tigre_hierro_sheet_v2.png",
       "portrait": "assets/fighters/portraits/online/tigre_hierro_portrait.png",
+      "frame_count": 10,
       "default_color": [202, 162, 68]
     },
     "serpiente_blanca": {
       "fighter_name": "Colmillo Blanco",
-      "sprite_sheet": "assets/fighters/online/serpiente_blanca_sheet.png",
+      "sprite_sheet": "assets/fighters/online/serpiente_blanca_sheet_v2.png",
       "portrait": "assets/fighters/portraits/online/serpiente_blanca_portrait.png",
+      "frame_count": 10,
       "default_color": [220, 220, 224]
     },
     "lobo_carmesi": {
       "fighter_name": "Lobo Carmesi",
-      "sprite_sheet": "assets/fighters/online/lobo_carmesi_sheet.png",
+      "sprite_sheet": "assets/fighters/online/lobo_carmesi_sheet_v2.png",
       "portrait": "assets/fighters/portraits/online/lobo_carmesi_portrait.png",
+      "frame_count": 10,
       "default_color": [174, 42, 48]
     }
   },

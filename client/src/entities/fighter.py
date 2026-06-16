@@ -4,6 +4,8 @@ import pygame
 
 from src.combat.moves import ATTACKS
 
+ATTACK_STATES = frozenset(ATTACKS)
+
 
 @dataclass
 class FighterStats:
@@ -17,6 +19,7 @@ class FighterStats:
     weapon_id: str
     sprite_sheet: str = ""
     portrait: str = ""
+    frame_count: int = 7
 
 
 class Fighter:
@@ -66,7 +69,7 @@ class Fighter:
         if asset_loader and stats.sprite_sheet:
             self.sprite_frames = asset_loader.load_sprite_strip(
                 stats.sprite_sheet,
-                7,
+                max(1, int(stats.frame_count or 7)),
                 scale_height=180,
                 chroma_key=(0, 255, 0),
                 chroma_tolerance=110,
@@ -108,7 +111,7 @@ class Fighter:
         self.combo_damage = 0
 
     def move(self, direction, dt):
-        if self.state in {"attack_light", "attack_heavy", "kick", "hurt", "dodge", "landing", "defeated"} or self.crouching:
+        if self.state in ATTACK_STATES or self.state in {"hurt", "dodge", "landing", "defeated"} or self.crouching:
             return
         target_speed = direction * self.stats.speed
         if not self.on_ground:
@@ -123,7 +126,7 @@ class Fighter:
             self._set_state("idle")
 
     def jump(self):
-        if self.on_ground and self.state not in {"attack_light", "attack_heavy", "kick", "dodge", "hurt", "landing", "defeated"}:
+        if self.on_ground and self.state not in ATTACK_STATES and self.state not in {"dodge", "hurt", "landing", "defeated"}:
             self.crouching = False
             self.velocity_y = -self.JUMP_SPEED
             self.on_ground = False
@@ -132,15 +135,10 @@ class Fighter:
         return False
 
     def crouch(self, active):
-        self.crouching = active and self.on_ground and self.state not in {
-            "attack_light",
-            "attack_heavy",
-            "kick",
-            "hurt",
-            "dodge",
-            "landing",
-            "defeated",
-        }
+        if self.state in ATTACKS and ATTACKS[self.state].get("keep_crouch"):
+            self.crouching = True
+            return
+        self.crouching = active and self.on_ground and self.state not in ATTACK_STATES and self.state not in {"hurt", "dodge", "landing", "defeated"}
         if self.crouching:
             self.velocity_x = 0
             self._set_state("crouch")
@@ -149,13 +147,19 @@ class Fighter:
 
     def start_attack(self, attack_name):
         info = ATTACKS.get(attack_name)
-        if not info or not self.on_ground:
+        if not info:
+            return False
+        if info.get("requires_ground", True) and not self.on_ground:
+            return False
+        if info.get("requires_air") and self.on_ground:
+            return False
+        if info.get("requires_crouch") and not self.crouching:
             return False
         stamina_cost = info["stamina"]
         if self.cooldown_timer > 0 or self.stamina < stamina_cost or self.state in {"hurt", "dodge", "landing", "defeated"}:
             return False
         duration = info["startup"] + info["active"] + info["recovery"]
-        self.crouching = False
+        self.crouching = bool(info.get("keep_crouch"))
         self.blocking = False
         self._set_state(attack_name)
         self.attack_timer = duration
@@ -164,12 +168,15 @@ class Fighter:
         self.cooldown_timer = max(self.weapon.cooldown, duration)
         self.stamina = max(0, self.stamina - stamina_cost)
         self.velocity_x = info["lunge"] * self.facing
+        vertical_cap = info.get("vertical_speed_cap")
+        if vertical_cap is not None and self.velocity_y > vertical_cap:
+            self.velocity_y = vertical_cap
         return True
 
     def block(self, active):
         if active:
             self.crouching = False
-        self.blocking = active and self.on_ground and self.state not in {"attack_light", "attack_heavy", "kick", "hurt", "dodge", "landing", "defeated"}
+        self.blocking = active and self.on_ground and self.state not in ATTACK_STATES and self.state not in {"hurt", "dodge", "landing", "defeated"}
         if self.blocking:
             self.velocity_x = self._approach(self.velocity_x, 0, 2800 / 60)
             self._set_state("block")
@@ -177,7 +184,7 @@ class Fighter:
             self._set_state("idle")
 
     def dodge(self):
-        if self.stamina < 18 or not self.on_ground or self.state in {"attack_light", "attack_heavy", "kick", "hurt", "dodge", "landing", "defeated"}:
+        if self.stamina < 18 or not self.on_ground or self.state in ATTACK_STATES or self.state in {"hurt", "dodge", "landing", "defeated"}:
             return False
         self.crouching = False
         self._set_state("dodge")
@@ -197,6 +204,7 @@ class Fighter:
         self.blocking = False
         self.attack_timer = 0.0
         self.attack_duration = 0.0
+        self.attack_hit_confirmed = False
         self.health = max(0, self.health - amount)
         self.flash_timer = 0.12
         if self.health <= 0:
@@ -331,7 +339,7 @@ class Fighter:
         if self.on_ground and not was_on_ground and fall_speed > 220 and self.health > 0:
             self._set_state("landing")
             self.landing_timer = 0.10
-        elif not self.on_ground and self.state not in {"attack_light", "attack_heavy", "kick", "hurt", "dodge", "defeated"}:
+        elif not self.on_ground and self.state not in ATTACK_STATES and self.state not in {"hurt", "dodge", "defeated"}:
             self._set_state("jump")
             self.crouching = False
         elif self.on_ground and self.state == "jump":
@@ -363,6 +371,12 @@ class Fighter:
                 sprite_rect.x += 14 * self.facing
             elif self.state == "kick":
                 sprite_rect.x += 12 * self.facing
+            elif self.state == "low_kick":
+                sprite_rect.x += 10 * self.facing
+                sprite_rect.y += 4
+            elif self.state == "flying_kick":
+                sprite_rect.x += 18 * self.facing
+                sprite_rect.y -= 10
             elif self.state == "dodge":
                 sprite_rect.x += 8 * self.facing
             elif self.state == "defeated":
@@ -418,6 +432,35 @@ class Fighter:
         return frames[index], outlines[index]
 
     def _build_animation_bank(self):
+        if len(self.sprite_frames) >= 10:
+            frame_index = lambda index: max(0, min(len(self.sprite_frames) - 1, index))
+            variants = {
+                "idle": [(0, 1.00, 1.00, 0), (0, 1.01, 0.99, -1), (0, 1.00, 1.01, 0), (0, 0.99, 1.00, 1)],
+                "walk": [(1, 0.99, 1.00, 0), (2, 1.01, 1.00, 0), (1, 1.00, 1.01, 0), (2, 1.00, 0.99, 0)],
+                "attack_light": [(0, 0.98, 1.01, -2), (3, 0.96, 1.00, -2), (3, 1.01, 0.99, 0), (3, 1.03, 0.98, 1), (0, 1.00, 1.00, 0)],
+                "attack_heavy": [(0, 0.96, 1.02, -4), (4, 0.92, 1.01, -3), (4, 0.98, 1.00, -1), (4, 1.05, 0.97, 2), (0, 1.00, 1.00, 0)],
+                "kick": [(0, 0.98, 1.01, -2), (5, 0.97, 1.00, -2), (6, 1.00, 0.99, 0), (6, 1.02, 0.98, 1), (0, 1.00, 1.00, 0)],
+                "low_kick": [(7, 1.00, 1.00, 0), (8, 0.99, 1.00, -1), (8, 1.02, 0.98, 0), (8, 1.01, 0.99, 1), (7, 1.00, 1.00, 0)],
+                "flying_kick": [(5, 0.99, 1.00, 0), (6, 1.01, 0.99, 0), (6, 1.03, 0.98, 1), (5, 1.00, 1.00, 0)],
+                "jump": [(5, 0.99, 1.01, -2), (5, 1.00, 1.00, 0), (6, 1.01, 0.99, 2), (5, 0.99, 1.00, 1)],
+                "crouch": [(7, 1.00, 1.00, 0), (7, 1.01, 0.99, -1), (7, 1.00, 1.00, 0)],
+                "hurt": [(9, 1.00, 1.00, 0), (9, 1.03, 0.97, 3), (9, 1.01, 0.99, 5), (9, 0.99, 1.01, 2)],
+                "block": [(7, 1.00, 1.00, 0), (7, 1.02, 0.98, -1), (7, 1.00, 1.00, 0)],
+                "dodge": [(5, 1.08, 0.92, -7), (6, 1.10, 0.90, -9), (5, 1.06, 0.94, -5), (0, 1.00, 1.00, 0)],
+                "landing": [(7, 1.06, 0.94, 0), (7, 1.02, 0.98, 0), (0, 1.00, 1.00, 0)],
+                "defeated": [(9, 1.00, 1.00, 78)],
+            }
+            for state, specs in variants.items():
+                frames = [
+                    self._make_variant(self.sprite_frames[frame_index(index)], scale_x, scale_y, angle)
+                    for index, scale_x, scale_y, angle in specs
+                ]
+                self.animation_frames[state] = frames
+                self.flipped_animation_frames[state] = [pygame.transform.flip(frame, True, False) for frame in frames]
+                outlines = [self._build_outline(frame) for frame in frames]
+                self.animation_outlines[state] = outlines
+                self.flipped_animation_outlines[state] = [pygame.transform.flip(frame, True, False) for frame in outlines]
+            return
         variants = {
             "idle": [(0, 1.00, 1.00, 0), (0, 1.01, 0.99, -1), (0, 1.00, 1.01, 0), (0, 0.99, 1.00, 1)],
             "walk": [(0, 0.98, 1.02, -2), (0, 1.00, 1.00, -1), (0, 1.02, 0.98, 1), (0, 1.00, 1.01, 2), (0, 0.98, 1.02, 1), (0, 1.01, 0.99, -1)],

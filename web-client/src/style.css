@@ -95,6 +95,7 @@ button {
   flex-direction: column;
   gap: 18px;
   position: relative;
+  overflow: auto;
 }
 
 .scene-backdrop {
@@ -564,6 +565,128 @@ label {
   color: #dbe0ed;
 }
 
+.list-row.focus {
+  border: 1px solid rgba(214, 178, 96, 0.3);
+  background: linear-gradient(135deg, rgba(214, 178, 96, 0.16), rgba(118, 41, 44, 0.12));
+  box-shadow: inset 0 0 0 1px rgba(255, 240, 204, 0.06);
+}
+
+.rank-row {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.rank-row span:last-child {
+  color: #bfc6d8;
+  font-size: 0.86rem;
+}
+
+.online-preview-card {
+  display: grid;
+  grid-template-columns: 108px 1fr;
+  gap: 14px;
+  align-items: center;
+  padding: 14px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(214, 178, 96, 0.12), rgba(255, 255, 255, 0.04));
+  border: 1px solid rgba(214, 178, 96, 0.18);
+}
+
+.online-preview-card img {
+  width: 108px;
+  height: 144px;
+  object-fit: cover;
+  border-radius: 14px;
+  border: 1px solid rgba(214, 178, 96, 0.26);
+  background: rgba(0, 0, 0, 0.24);
+}
+
+.online-preview-copy {
+  display: grid;
+  gap: 8px;
+}
+
+.ranking-card {
+  gap: 12px;
+}
+
+.ranking-list {
+  min-height: 210px;
+}
+
+.ranking-toolbar {
+  display: grid;
+  gap: 10px;
+}
+
+.ranking-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.ranking-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.rank-filter,
+.rank-view-tab {
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: rgba(14, 17, 24, 0.84);
+  color: #f1ebde;
+  border: 1px solid rgba(214, 178, 96, 0.18);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.rank-filter.active,
+.rank-view-tab.active {
+  background: linear-gradient(180deg, #d9bf7d 0%, #9f7533 100%);
+  color: #120d05;
+  border-color: rgba(255, 232, 191, 0.28);
+}
+
+.ranking-focus {
+  display: grid;
+  gap: 12px;
+}
+
+.focus-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.focus-card {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 18px;
+  background: linear-gradient(145deg, rgba(214, 178, 96, 0.12), rgba(255, 255, 255, 0.04));
+  border: 1px solid rgba(214, 178, 96, 0.18);
+}
+
+.focus-rank {
+  font-size: clamp(1.9rem, 4vw, 2.7rem);
+  line-height: 1;
+  font-weight: 800;
+  color: #f6ddb0;
+  text-shadow: 0 6px 20px rgba(0, 0, 0, 0.28);
+}
+
+.compact-list {
+  max-height: none;
+}
+
+.focus-inline-row strong {
+  color: #f6ddb0;
+}
+
 .helper {
   color: #aab1c5;
   font-size: 0.88rem;
@@ -802,5 +925,371 @@ label {
   .action-pad {
     grid-template-columns: repeat(2, 94px);
     grid-template-rows: repeat(2, 80px);
+  }
+}
+
+@media (max-width: 900px), (max-height: 540px) {
+  .shell {
+    padding: 0;
+  }
+
+  .app-stage {
+    width: 100vw;
+    height: 100dvh;
+    border-radius: 0;
+    border: 0;
+    box-shadow: none;
+  }
+
+  .scene {
+    padding: 12px;
+    gap: 12px;
+  }
+
+  .scene-topbar,
+  .scene-header {
+    gap: 10px;
+  }
+
+  .card,
+  .auth-card,
+  .cutscene-panel,
+  .vintage-menu-panel {
+    padding: 14px;
+    border-radius: 18px;
+  }
+
+  .menu-stage-copy {
+    padding: 0;
+  }
+
+  .logo-slot {
+    width: 94%;
+    min-height: 92px;
+  }
+
+  .logo-slot.game {
+    min-height: 132px;
+  }
+
+  .topbar-note,
+  .helper,
+  .rank-row span:last-child {
+    font-size: 0.8rem;
+  }
+
+  .list-panel {
+    max-height: 156px;
+  }
+
+  .focus-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .online-preview-card {
+    grid-template-columns: 84px 1fr;
+    padding: 12px;
+  }
+
+  .online-preview-card img {
+    width: 84px;
+    height: 112px;
+  }
+}
+
+@media (orientation: landscape) and (max-width: 1100px) {
+  .online-grid {
+    grid-template-columns: 1.02fr 0.98fr;
+  }
+
+  .selection-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: start;
+  }
+
+  .mission-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .selector-list.compact {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .weapon-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .ranking-toolbar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (orientation: landscape) and (max-height: 540px) {
+  .menu-scene {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 320px);
+    grid-template-rows: auto 1fr;
+    grid-template-areas:
+      "header header"
+      "copy menu";
+    align-items: end;
+    gap: 12px 16px;
+    overflow: hidden;
+  }
+
+  .menu-scene > .scene-topbar {
+    grid-area: header;
+    margin-bottom: 4px;
+  }
+
+  .menu-stage-copy {
+    grid-area: copy;
+    width: auto;
+    max-width: none;
+    margin: 0;
+    align-self: end;
+    gap: 10px;
+    padding: 0 8px 6px 4px;
+  }
+
+  .menu-stage-copy h1 {
+    font-size: clamp(2rem, 5vw, 2.8rem);
+    max-width: 8ch;
+  }
+
+  .menu-stage-copy p {
+    max-width: 36ch;
+    font-size: 0.92rem;
+  }
+
+  .vintage-menu-panel {
+    grid-area: menu;
+    width: auto;
+    margin: 0;
+    align-self: stretch;
+    padding: 16px 16px 14px;
+    gap: 12px;
+  }
+
+  .vintage-menu-panel::before {
+    left: 16px;
+    right: 16px;
+    top: 12px;
+  }
+
+  .status-row {
+    gap: 8px;
+  }
+
+  .status-row .pill:last-child {
+    display: none;
+  }
+
+  .online-grid {
+    grid-template-columns: 1.04fr 0.96fr;
+    align-items: start;
+  }
+
+  .selection-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+    align-items: start;
+    overflow: auto;
+    padding-bottom: 4px;
+  }
+
+  .selection-grid > .card,
+  .online-grid > .card {
+    min-height: 0;
+  }
+
+  .selection-grid > .card .selector-list,
+  .online-grid > .card .selector-list.compact,
+  .online-grid > .card .list-panel {
+    min-height: 0;
+    overflow: auto;
+  }
+
+  .selector-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .list-panel {
+    max-height: 112px;
+  }
+
+  .menu-btn,
+  .pill-button,
+  .rank-filter,
+  .rank-view-tab {
+    min-height: 38px;
+    padding: 8px 12px;
+    font-size: 0.82rem;
+  }
+
+  input {
+    min-height: 40px;
+  }
+
+  .selector-list,
+  .arena-list,
+  .weapon-grid,
+  .mission-grid,
+  .list-panel {
+    gap: 8px;
+  }
+
+  .select-card,
+  .arena-card {
+    padding: 8px;
+    gap: 6px;
+  }
+
+  .select-card img,
+  .arena-card img {
+    aspect-ratio: 4 / 3;
+    max-height: 92px;
+  }
+
+  .select-card span,
+  .arena-card span,
+  .pill,
+  label {
+    font-size: 0.78rem;
+  }
+
+  .story-banner {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: 14px 16px;
+    gap: 12px;
+    align-items: flex-start;
+  }
+
+  .hero-actions.compact {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    width: 188px;
+  }
+
+  .hero-actions.compact .menu-btn {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .mission-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    min-height: 0;
+    overflow: auto;
+  }
+
+  .mission-card {
+    display: grid;
+    min-height: 0;
+  }
+
+  .mission-card img {
+    display: none;
+  }
+
+  .mission-copy {
+    padding: 10px;
+    gap: 8px;
+  }
+
+  .mission-copy p {
+    font-size: 0.8rem;
+    line-height: 1.32;
+  }
+
+  .mission-copy .menu-btn {
+    min-height: 36px;
+    padding: 8px 12px;
+    font-size: 0.78rem;
+  }
+
+  .control-columns {
+    min-height: 0;
+  }
+
+  .control-card .list-panel {
+    max-height: 148px;
+  }
+
+  .footer-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 3;
+    justify-content: flex-end;
+    padding-top: 8px;
+    background: linear-gradient(180deg, rgba(9, 11, 16, 0), rgba(9, 11, 16, 0.94) 52%);
+  }
+
+  .online-preview-card img {
+    width: 74px;
+    height: 96px;
+  }
+
+  .focus-card {
+    padding: 12px;
+    gap: 8px;
+  }
+
+  .focus-rank {
+    font-size: 1.8rem;
+  }
+
+  .battle-pause-btn {
+    top: 12px;
+    right: 12px;
+    width: 46px;
+    height: 46px;
+    border-radius: 14px;
+  }
+
+  .battle-status {
+    bottom: 166px;
+    gap: 6px;
+  }
+
+  .battle-chip {
+    min-height: 26px;
+    padding: 0 8px;
+    font-size: 0.68rem;
+  }
+
+  .battle-controls {
+    padding: 0 12px 12px;
+  }
+
+  .touch-pad {
+    gap: 8px;
+    padding-top: 28px;
+  }
+
+  .touch-pad::before {
+    min-height: 24px;
+    font-size: 0.66rem;
+  }
+
+  .move-pad {
+    grid-template-columns: repeat(2, 74px);
+    grid-template-rows: repeat(2, 68px);
+  }
+
+  .action-pad {
+    grid-template-columns: repeat(2, 92px);
+    grid-template-rows: repeat(2, 74px);
+  }
+
+  .touch-btn {
+    min-width: 68px;
+    min-height: 68px;
+    font-size: 0.78rem;
+  }
+
+  .touch-btn.jump {
+    font-size: 0.72rem;
   }
 }

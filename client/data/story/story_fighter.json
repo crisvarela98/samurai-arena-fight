@@ -7,8 +7,9 @@
   "attack_power": 19,
   "defense": 9,
   "weapon_id": "katana",
-  "sprite_sheet": "assets/fighters/kenji_sheet_v2.png",
+  "sprite_sheet": "assets/fighters/kenji_sheet_v3.png",
   "portrait": "assets/fighters/portraits/kenji_portrait.png",
+  "frame_count": 10,
   "identity": "Desconocida",
   "weapon_description": "Katana negra marcada con un simbolo borrado."
 }

@@ -1,7 +1,7 @@
 const LOGICAL_WIDTH = 1280;
 const LOGICAL_HEIGHT = 720;
 const GROUND_Y = 560;
-const SPRITE_FRAME_COUNT = 7;
+const DEFAULT_SPRITE_FRAME_COUNT = 7;
 const TOUCH_BUTTONS = [
   { action: "left", label: "IZQ", group: "move" },
   { action: "right", label: "DER", group: "move" },
@@ -42,8 +42,9 @@ function createImage(src) {
   return image;
 }
 
-function buildSpriteFrameRects(image) {
-  const frameWidth = Math.floor(image.naturalWidth / SPRITE_FRAME_COUNT);
+function buildSpriteFrameRects(image, frameCount = DEFAULT_SPRITE_FRAME_COUNT) {
+  const safeFrameCount = Math.max(1, Math.floor(Number(frameCount) || DEFAULT_SPRITE_FRAME_COUNT));
+  const frameWidth = Math.floor(image.naturalWidth / safeFrameCount);
   const frameHeight = image.naturalHeight;
   const canvas = document.createElement("canvas");
   canvas.width = image.naturalWidth;
@@ -52,7 +53,7 @@ function buildSpriteFrameRects(image) {
   ctx.drawImage(image, 0, 0);
   const rects = [];
 
-  for (let index = 0; index < SPRITE_FRAME_COUNT; index += 1) {
+  for (let index = 0; index < safeFrameCount; index += 1) {
     const startX = index * frameWidth;
     const data = ctx.getImageData(startX, 0, frameWidth, frameHeight).data;
     let minX = frameWidth;
@@ -101,6 +102,7 @@ function calcWeaponConfig(weapon) {
 
 function makeFighter(meta, side, accent, weapon, socketId = null) {
   const spriteUrl = meta.spriteUrl || meta.sprite_sheet || meta.spriteSheet || "";
+  const frameCount = Math.max(1, Math.floor(Number(meta.frame_count || meta.frameCount || DEFAULT_SPRITE_FRAME_COUNT) || DEFAULT_SPRITE_FRAME_COUNT));
   return {
     socketId,
     id: meta.id || side,
@@ -108,6 +110,7 @@ function makeFighter(meta, side, accent, weapon, socketId = null) {
     portraitUrl: meta.portraitUrl || meta.portrait || "",
     portraitImage: createImage(meta.portraitUrl || meta.portrait || ""),
     spriteUrl,
+    frameCount,
     spriteSheetImage: createImage(spriteUrl),
     spriteFrameRects: null,
     accent,
@@ -136,6 +139,8 @@ function makeFighter(meta, side, accent, weapon, socketId = null) {
     specialCooldown: 0,
     action: null,
     remoteState: null,
+    moveDirection: 0,
+    walkTime: 0,
     bobTime: Math.random() * Math.PI * 2,
   };
 }
@@ -234,7 +239,26 @@ export class BattleView {
         this.enemy.crouching = Boolean(payload.down);
       }),
       this.realtime.on("opponent_attack", (payload) => {
-        this.startAction(this.enemy, payload.attackType === "special" ? "special" : "attack", false);
+        const attackType = payload.attackType;
+        if (attackType === "special" || attackType === "attack_heavy") {
+          this.startAction(this.enemy, "special", false);
+          return;
+        }
+        if (attackType === "lowKick" || attackType === "low_kick" || attackType === "kick_low") {
+          this.enemy.crouching = true;
+          this.startAction(this.enemy, "lowKick", false);
+          return;
+        }
+        if (attackType === "flyingKick" || attackType === "flying_kick" || attackType === "kick_flying") {
+          this.enemy.onGround = false;
+          this.startAction(this.enemy, "flyingKick", false);
+          return;
+        }
+        if (attackType === "kick") {
+          this.startAction(this.enemy, this.enemy.crouching ? "lowKick" : !this.enemy.onGround ? "flyingKick" : "attack", false);
+          return;
+        }
+        this.startAction(this.enemy, "attack", false);
       }),
       this.realtime.on("opponent_block", (payload) => {
         this.enemy.isBlocking = Boolean(payload.active);
@@ -373,7 +397,15 @@ export class BattleView {
       }
       return;
     }
-    this.startAction(this.player, action === "special" ? "special" : "attack", true);
+    const type =
+      action === "special"
+        ? "special"
+        : !this.player.onGround
+          ? "flyingKick"
+          : this.player.crouching
+            ? "lowKick"
+            : "attack";
+    this.startAction(this.player, type, true);
   }
 
   triggerDash(fighter) {
@@ -384,18 +416,103 @@ export class BattleView {
     fighter.vx = dir * 720;
   }
 
+  getActionConfig(fighter, type) {
+    switch (type) {
+      case "special":
+        return {
+          cooldownKey: "specialCooldown",
+          cost: fighter.weapon.staminaCost + 10,
+          cooldown: fighter.weapon.cooldown + 0.45,
+          duration: 0.44,
+          hitTime: 0.18,
+          range: fighter.weapon.range + 26,
+          damage:
+            fighter.weapon.specialDamage +
+            fighter.attackPower * 0.45,
+          knockback: 180,
+          sound: "hitHeavy",
+          requiresGround: true,
+          driveX: fighter.facing * 140,
+        };
+      case "lowKick":
+        return {
+          cooldownKey: "attackCooldown",
+          cost: Math.max(8, fighter.weapon.staminaCost - 2),
+          cooldown: fighter.weapon.cooldown + 0.06,
+          duration: 0.32,
+          hitTime: 0.14,
+          range: fighter.weapon.range + 12,
+          damage:
+            fighter.weapon.lightDamage +
+            fighter.attackPower * 0.22,
+          knockback: 124,
+          sound: "hitKick",
+          requiresGround: true,
+          requiresCrouch: true,
+          sustainCrouch: true,
+          driveX: fighter.facing * 78,
+        };
+      case "flyingKick":
+        return {
+          cooldownKey: "attackCooldown",
+          cost: Math.max(10, fighter.weapon.staminaCost),
+          cooldown: fighter.weapon.cooldown + 0.18,
+          duration: 0.38,
+          hitTime: 0.11,
+          range: fighter.weapon.range + 20,
+          damage:
+            fighter.weapon.lightDamage +
+            fighter.attackPower * 0.34,
+          knockback: 150,
+          sound: "hitKick",
+          requiresAir: true,
+          driveX: fighter.facing * 320,
+        };
+      case "attack":
+      default:
+        return {
+          cooldownKey: "attackCooldown",
+          cost: fighter.weapon.staminaCost,
+          cooldown: fighter.weapon.cooldown,
+          duration: 0.26,
+          hitTime: 0.12,
+          range: fighter.weapon.range,
+          damage:
+            fighter.weapon.lightDamage +
+            fighter.attackPower * 0.25,
+          knockback: 110,
+          sound: "hitLight",
+          requiresGround: true,
+          driveX: fighter.facing * 92,
+        };
+    }
+  }
+
   startAction(fighter, type, shouldBroadcast) {
     const target = fighter === this.player ? this.enemy : this.player;
-    const cooldownKey = type === "special" ? "specialCooldown" : "attackCooldown";
+    const config = this.getActionConfig(fighter, type);
+    if (!config) return;
+    const cooldownKey = config.cooldownKey;
+    if (config.requiresGround && !fighter.onGround) return;
+    if (config.requiresAir && fighter.onGround) return;
+    if (config.requiresCrouch && !fighter.crouching) return;
     if (fighter[cooldownKey] > 0 || this.roundIntro.timer > 0 || this.matchEnded) return;
-    const cost = type === "special" ? fighter.weapon.staminaCost + 10 : fighter.weapon.staminaCost;
-    if (fighter.stamina < cost) return;
-    fighter.stamina = clamp(fighter.stamina - cost, 0, fighter.maxStamina);
-    fighter[cooldownKey] = type === "special" ? fighter.weapon.cooldown + 0.45 : fighter.weapon.cooldown;
+    if (fighter.action || fighter.dodgeTimer > 0) return;
+    if (fighter.stamina < config.cost) return;
+    fighter.stamina = clamp(fighter.stamina - config.cost, 0, fighter.maxStamina);
+    fighter[cooldownKey] = config.cooldown;
+    fighter.isBlocking = false;
+    fighter.crouching = Boolean(config.sustainCrouch);
+    if (type === "flyingKick" && fighter.vy > 180) {
+      fighter.vy = 180;
+    }
     fighter.action = {
       type,
       timer: 0,
-      duration: type === "special" ? 0.44 : 0.26,
+      duration: config.duration,
+      hitTime: config.hitTime,
+      driveX: config.driveX || 0,
+      sustainCrouch: Boolean(config.sustainCrouch),
       hitDone: false,
     };
     if (this.mode === "online" && fighter === this.player && shouldBroadcast && this.realtime) {
@@ -407,30 +524,36 @@ export class BattleView {
   }
 
   tryResolveHit(attacker, defender, attackType) {
-    const range = attacker.weapon.range + (attackType === "special" ? 26 : 0);
+    const config = this.getActionConfig(attacker, attackType);
+    if (!config) return;
+    const range = config.range;
     if (distance(attacker, defender) > range) return;
     if (defender.dodgeTimer > 0.04) return;
-    const baseDamage =
-      (attackType === "special" ? attacker.weapon.specialDamage : attacker.weapon.lightDamage) +
-      attacker.attackPower * (attackType === "special" ? 0.45 : 0.25);
+    const baseDamage = config.damage;
     const blocked = defender.isBlocking;
     const reduced = blocked ? baseDamage * 0.38 : baseDamage;
     const damage = Math.max(1, Math.round(reduced - defender.defense * 0.28));
     if (this.mode === "online" && attacker === this.player && this.realtime) {
+      const networkAttackType =
+        attackType === "special"
+          ? "attack_heavy"
+          : attackType === "lowKick"
+            ? "kick_low"
+            : attackType === "flyingKick"
+              ? "kick_flying"
+              : "attack_light";
       this.realtime.sendHit({
-        attackType: attackType === "special" ? "attack_heavy" : "attack_light",
+        attackType: networkAttackType,
         damage,
         blocked,
-        knockback: blocked ? 8 : attackType === "special" ? 28 : 18,
+        knockback: blocked ? 8 : Math.round(config.knockback * 0.16),
       });
       return;
     }
     defender.health = clamp(defender.health - damage, 0, defender.maxHealth);
     defender.hitFlash = 0.18;
-    this.audio?.playEffect(
-      attackType === "special" ? "hitHeavy" : attackType === "attack" ? "hitLight" : "hitKick",
-    );
-    defender.vx += (attacker === this.player ? 1 : -1) * (blocked ? 90 : attackType === "special" ? 180 : 110);
+    this.audio?.playEffect(config.sound);
+    defender.vx += (attacker === this.player ? 1 : -1) * (blocked ? 90 : config.knockback);
     if (defender.health <= 0) {
       this.finishRound(attacker === this.player);
     }
@@ -489,17 +612,31 @@ export class BattleView {
       fighter.action = null;
       fighter.dodgeTimer = 0;
       fighter.isBlocking = false;
+      fighter.crouching = false;
+      fighter.moveDirection = 0;
+      fighter.walkTime = 0;
     });
     this.resetPositions();
   }
 
   resetPositions() {
-    this.player.x = 220;
-    this.enemy.x = 1060;
-    this.player.y = GROUND_Y;
-    this.enemy.y = GROUND_Y;
-    this.player.facing = 1;
-    this.enemy.facing = -1;
+    [
+      [this.player, 220, 1],
+      [this.enemy, 1060, -1],
+    ].forEach(([fighter, x, facing]) => {
+      fighter.x = x;
+      fighter.y = GROUND_Y;
+      fighter.vx = 0;
+      fighter.vy = 0;
+      fighter.facing = facing;
+      fighter.onGround = true;
+      fighter.action = null;
+      fighter.dodgeTimer = 0;
+      fighter.isBlocking = false;
+      fighter.crouching = false;
+      fighter.moveDirection = 0;
+      fighter.walkTime = 0;
+    });
   }
 
   scheduleHint() {
@@ -583,6 +720,10 @@ export class BattleView {
     } else {
       const aiInput = this.computeAiInput(dt);
       this.updateFighter(this.enemy, this.player, dt, aiInput, false);
+      if (aiInput.attackType && !this.enemy.action && this.enemy.dodgeTimer <= 0) {
+        this.startAction(this.enemy, aiInput.attackType, false);
+        aiInput.attackType = null;
+      }
     }
     this.resolveSpacing();
   }
@@ -604,13 +745,39 @@ export class BattleView {
   }
 
   updateRemoteFighter(dt) {
+    this.enemy.bobTime += dt * 4;
+    this.enemy.attackCooldown = Math.max(0, this.enemy.attackCooldown - dt);
+    this.enemy.specialCooldown = Math.max(0, this.enemy.specialCooldown - dt);
+    this.enemy.dodgeTimer = Math.max(0, this.enemy.dodgeTimer - dt);
+    this.enemy.hitFlash = Math.max(0, this.enemy.hitFlash - dt);
+    if (this.enemy.action) {
+      this.enemy.action.timer += dt;
+      if (this.enemy.action.sustainCrouch) {
+        this.enemy.crouching = true;
+      }
+      if (this.enemy.action.timer >= this.enemy.action.duration) {
+        this.enemy.action = null;
+      }
+    }
     const state = this.enemy.remoteState;
     if (!state) return;
+    const previousX = this.enemy.x;
     this.enemy.x = lerp(this.enemy.x, state.x ?? this.enemy.x, clamp(dt * 10, 0, 1));
     this.enemy.y = lerp(this.enemy.y, state.y ?? this.enemy.y, clamp(dt * 10, 0, 1));
+    this.enemy.vx = state.vx ?? this.enemy.vx;
+    this.enemy.vy = state.vy ?? this.enemy.vy;
     this.enemy.facing = state.facing ?? this.enemy.facing;
     this.enemy.isBlocking = Boolean(state.block);
     this.enemy.crouching = Boolean(state.down);
+    this.enemy.onGround = this.enemy.y >= GROUND_Y - 1;
+    const remoteDirection =
+      Math.abs(state.vx ?? 0) > 18 ? Math.sign(state.vx) : Math.abs(this.enemy.x - previousX) > 0.8 ? Math.sign(this.enemy.x - previousX) : 0;
+    this.enemy.moveDirection = remoteDirection;
+    if (this.enemy.onGround && !this.enemy.action && !this.enemy.crouching && !this.enemy.isBlocking && remoteDirection !== 0) {
+      this.enemy.walkTime += dt * 7.5;
+    } else if (!this.enemy.action) {
+      this.enemy.walkTime = 0;
+    }
   }
 
   updateFighter(fighter, target, dt, input, allowActions) {
@@ -619,8 +786,9 @@ export class BattleView {
     fighter.specialCooldown = Math.max(0, fighter.specialCooldown - dt);
     fighter.dodgeTimer = Math.max(0, fighter.dodgeTimer - dt);
     fighter.hitFlash = Math.max(0, fighter.hitFlash - dt);
-    fighter.isBlocking = Boolean(input.block);
-    fighter.crouching = Boolean(input.down);
+    fighter.isBlocking = !fighter.action && Boolean(input.block);
+    fighter.crouching = !fighter.action && Boolean(input.down);
+    fighter.moveDirection = (input.left ? -1 : 0) + (input.right ? 1 : 0);
 
     if (this.mode !== "online") {
       fighter.health = clamp(fighter.health + fighter.maxHealth * 0.01 * dt, 0, fighter.maxHealth);
@@ -629,7 +797,10 @@ export class BattleView {
 
     if (fighter.action) {
       fighter.action.timer += dt;
-      if (!fighter.action.hitDone && fighter.action.timer >= (fighter.action.type === "special" ? 0.18 : 0.12)) {
+      if (fighter.action.sustainCrouch) {
+        fighter.crouching = true;
+      }
+      if (!fighter.action.hitDone && fighter.action.timer >= (fighter.action.hitTime || 0.12)) {
         fighter.action.hitDone = true;
         if (allowActions) {
           this.tryResolveHit(fighter, target, fighter.action.type);
@@ -641,9 +812,19 @@ export class BattleView {
     }
 
     const speedFactor = fighter.crouching ? 0.46 : fighter.isBlocking ? 0.52 : fighter.dodgeTimer > 0 ? 1.4 : 1;
-    const moveDir = (input.left ? -1 : 0) + (input.right ? 1 : 0);
-    fighter.vx = moveDir * fighter.speed * speedFactor;
-    if (moveDir !== 0) fighter.facing = moveDir;
+    const moveDir = fighter.moveDirection;
+    const canWalk = !fighter.action && fighter.dodgeTimer <= 0;
+    if (canWalk) {
+      fighter.vx = moveDir * fighter.speed * speedFactor;
+    } else if (fighter.action?.driveX) {
+      fighter.vx = fighter.action.driveX;
+    }
+    if (moveDir !== 0 && canWalk) fighter.facing = moveDir;
+    if (canWalk && moveDir !== 0 && fighter.onGround && !fighter.crouching && !fighter.isBlocking) {
+      fighter.walkTime += dt * 7.5;
+    } else if (!fighter.action) {
+      fighter.walkTime = 0;
+    }
     if (input.up && fighter.onGround) {
       fighter.vy = -520;
       fighter.onGround = false;
@@ -673,11 +854,22 @@ export class BattleView {
         up: Math.random() < 0.1,
         down: gap < 110 && Math.random() < 0.2,
         block: gap < 130 && Math.random() < 0.18,
+        attackType: null,
       };
       this.aiState.timer = 0.18 + Math.random() * 0.36;
       if (wantsAttack) {
-        const special = Math.random() < 0.3;
-        this.startAction(this.enemy, special ? "special" : "attack", false);
+        const roll = Math.random();
+        if (roll < 0.24) {
+          this.aiState.command.attackType = "special";
+        } else if (this.enemy.onGround && gap < this.enemy.weapon.range + 12 && roll < 0.52) {
+          this.aiState.command.down = true;
+          this.aiState.command.attackType = "lowKick";
+        } else if (this.enemy.onGround && gap < this.enemy.weapon.range + 34 && roll < 0.72) {
+          this.aiState.command.up = true;
+          this.aiState.command.attackType = "flyingKick";
+        } else {
+          this.aiState.command.attackType = "attack";
+        }
       } else if (gap > 180 && Math.random() < 0.12) {
         this.triggerDash(this.enemy);
       }
@@ -741,9 +933,27 @@ export class BattleView {
   }
 
   resolveSpriteFrameIndex(fighter) {
+    if (fighter.frameCount >= 10) {
+      if (fighter.hitFlash > 0.08 && !fighter.action) return 9;
+      if (fighter.action?.type === "special") return 4;
+      if (fighter.action?.type === "attack") return 3;
+      if (fighter.action?.type === "lowKick") return 8;
+      if (fighter.action?.type === "flyingKick") {
+        const progress = clamp(fighter.action.timer / Math.max(0.001, fighter.action.duration), 0, 0.999);
+        return progress < 0.45 ? 5 : 6;
+      }
+      if (!fighter.onGround || fighter.dodgeTimer > 0) return 5;
+      if (fighter.crouching || fighter.isBlocking) return 7;
+      if (Math.abs(fighter.moveDirection) > 0 && fighter.onGround) {
+        return Math.floor(fighter.walkTime) % 2 === 0 ? 1 : 2;
+      }
+      return 0;
+    }
     if (fighter.hitFlash > 0.08 && !fighter.action) return 6;
     if (fighter.action?.type === "special") return 2;
     if (fighter.action?.type === "attack") return 1;
+    if (fighter.action?.type === "lowKick") return 5;
+    if (fighter.action?.type === "flyingKick") return 4;
     if (!fighter.onGround || fighter.dodgeTimer > 0) return 4;
     if (fighter.crouching || fighter.isBlocking) return 5;
     return 0;
@@ -753,7 +963,7 @@ export class BattleView {
     const image = fighter.spriteSheetImage;
     if (!image?.complete || image.naturalWidth <= 0 || image.naturalHeight <= 0) return false;
     if (!fighter.spriteFrameRects) {
-      fighter.spriteFrameRects = buildSpriteFrameRects(image);
+      fighter.spriteFrameRects = buildSpriteFrameRects(image, fighter.frameCount);
     }
     const frame = fighter.spriteFrameRects[this.resolveSpriteFrameIndex(fighter)];
     if (!frame) return false;
@@ -765,17 +975,36 @@ export class BattleView {
         ? 14
         : fighter.action?.type === "attack"
           ? 10
+          : fighter.action?.type === "flyingKick"
+            ? 16
+            : fighter.action?.type === "lowKick"
+              ? 8
           : !fighter.onGround || fighter.dodgeTimer > 0
             ? 12
             : fighter.crouching || fighter.isBlocking
               ? 8
               : 0;
-    const targetHeight = fighter.crouching || fighter.isBlocking ? 164 : !fighter.onGround ? 176 : 184;
+    const targetHeight =
+      fighter.action?.type === "special"
+        ? 186
+        : fighter.action?.type === "flyingKick"
+          ? 178
+          : fighter.action?.type === "lowKick" || fighter.crouching || fighter.isBlocking
+            ? 164
+            : !fighter.onGround
+              ? 176
+              : 184;
     const scale = targetHeight / frame.sh;
     const drawWidth = frame.sw * scale;
     const drawHeight = frame.sh * scale;
     const drawX = -drawWidth / 2;
-    const drawY = -drawHeight + (fighter.crouching || fighter.isBlocking ? 26 : 10);
+    const drawY =
+      -drawHeight +
+      (fighter.action?.type === "flyingKick"
+        ? 16
+        : fighter.action?.type === "lowKick" || fighter.crouching || fighter.isBlocking
+          ? 26
+          : 10);
 
     ctx.save();
     ctx.translate(fighter.x + poseOffsetX * fighter.facing, fighter.y + bob);
@@ -992,18 +1221,24 @@ export class BattleView {
   drawOverlayText() {
     if (!this.overlayText) return;
     const ctx = this.ctx;
-    ctx.fillStyle = "rgba(0,0,0,0.18)";
+    const compactViewport = this.canvas?.clientHeight < 520;
+    const isRoundBanner = this.overlayText.startsWith("ROUND");
+    const titleSize = compactViewport ? (isRoundBanner ? 72 : 88) : isRoundBanner ? 96 : 108;
+    const subtitleSize = compactViewport ? 20 : 26;
+    const subtitleOffset = compactViewport ? 34 : 46;
+
+    ctx.fillStyle = compactViewport ? "rgba(0,0,0,0.12)" : "rgba(0,0,0,0.18)";
     ctx.fillRect(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT);
     ctx.textAlign = "center";
     ctx.fillStyle = "#111";
-    ctx.font = "700 96px Arial";
+    ctx.font = `700 ${titleSize}px Arial`;
     ctx.fillText(this.overlayText, LOGICAL_WIDTH / 2 + 6, LOGICAL_HEIGHT / 2 + 6);
     ctx.fillStyle = "#f5e7c4";
     ctx.fillText(this.overlayText, LOGICAL_WIDTH / 2, LOGICAL_HEIGHT / 2);
     if (this.overlaySubtext) {
-      ctx.font = "600 26px Arial";
+      ctx.font = `600 ${subtitleSize}px Arial`;
       ctx.fillStyle = "#f4f0e1";
-      ctx.fillText(this.overlaySubtext, LOGICAL_WIDTH / 2, LOGICAL_HEIGHT / 2 + 46);
+      ctx.fillText(this.overlaySubtext, LOGICAL_WIDTH / 2, LOGICAL_HEIGHT / 2 + subtitleOffset);
     }
   }
 }
